@@ -1,0 +1,14 @@
+﻿生成启动时间为 2020/12/9 15:38:17。
+     1>项目“C:\Users\zwxk\Desktop\LAN_Chatroom\Client\ChatroomClient\ChatroomClient\ChatroomClient.vcxproj”在节点 2 上(Build 个目标)。
+     1>ClCompile:
+         D:\VS2013\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _LIB /D _CRT_SECURE_NO_WARNINGS /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt Client.cpp
+         Client.cpp
+       Link:
+         D:\VS2013\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\zwxk\Desktop\LAN_Chatroom\Client\ChatroomClient\Debug\ChatroomClient.exe" /INCREMENTAL /NOLOGO ws2_32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\zwxk\Desktop\LAN_Chatroom\Client\ChatroomClient\Debug\ChatroomClient.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\zwxk\Desktop\LAN_Chatroom\Client\ChatroomClient\Debug\ChatroomClient.lib" /MACHINE:X86 Debug\Client.obj
+         Debug\main.obj
+         ChatroomClient.vcxproj -> C:\Users\zwxk\Desktop\LAN_Chatroom\Client\ChatroomClient\Debug\ChatroomClient.exe
+     1>已完成生成项目“C:\Users\zwxk\Desktop\LAN_Chatroom\Client\ChatroomClient\ChatroomClient\ChatroomClient.vcxproj”(Build 个目标)的操作。
+
+生成成功。
+
+已用时间 00:00:01.10

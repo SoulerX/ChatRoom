@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChatroomClient", "ChatroomClient\ChatroomClient.vcxproj", "{B1AEC7B0-F25A-4CF2-A956-A83D3C263490}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B1AEC7B0-F25A-4CF2-A956-A83D3C263490}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B1AEC7B0-F25A-4CF2-A956-A83D3C263490}.Debug|Win32.Build.0 = Debug|Win32
+		{B1AEC7B0-F25A-4CF2-A956-A83D3C263490}.Release|Win32.ActiveCfg = Release|Win32
+		{B1AEC7B0-F25A-4CF2-A956-A83D3C263490}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
