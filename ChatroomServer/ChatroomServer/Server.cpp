@@ -317,7 +317,7 @@ int Server::LoginStatus(unsigned number)
 				{
 					unsigned newNum = (unsigned)atoi(lpBuffer);
 
-					if (ChangeRoomNumber(roomNum, newNum))
+					if (ChangeRoomNumber(roomNum, newNum, number))
 					{
 						cout << "old room num:" << roomNum << " ===>> new room num:" << newNum <<endl;
 						roomNum = newNum;
@@ -361,10 +361,19 @@ void Server::TxtTranspond(ClientParams *clientInfo, char* message) // 转发函数
 {
 	char sendBuffer[1024];
 
-	sprintf(sendBuffer, "time: %sroom_%d-client_%d: %s\n", timer, clientInfo->roomId, clientInfo->userId, message);
+	sprintf(sendBuffer, "\ntime: %sroom_%d - client_%d : %s\n", timer, clientInfo->roomId, clientInfo->userId, message);
 
 	PublicType publicType = PUBLIC_MESSAGE;
-	unsigned sendObj = 1;
+	unsigned sendObj = FuzzyMatch(message);
+	if (-1 != sendObj)
+	{	
+		if (!FindRoomMate(clientInfo->roomId, sendObj)){
+			cout << "don`t find user_" << sendObj << endl;
+			return;
+		}
+		cout << "find user_" << sendObj << endl;
+		publicType = PRIVATE_MESSAGE;
+	}
 
 	for (vector<Room>::iterator iter1 = rooms.begin(); iter1 != rooms.end();iter1++)
 	{ // 迭代匹配用户
@@ -386,14 +395,14 @@ void Server::TxtTranspond(ClientParams *clientInfo, char* message) // 转发函数
 				}
 				else if (publicType == PRIVATE_MESSAGE && *iter == sendObj) // 单独发送
 				{
-					int sendByte = send(clientSocket[clientInfo->userId - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+					int sendByte = send(clientSocket[sendObj - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
 					if (sendByte < 0)
 					{
 						cout << "send faild" << endl;
 					}
 					else
 					{
-						//cout << "send message to client_" << *iter << " successed:" << message;
+						cout << "single send message to client_" << *iter << " successed:" << message;
 					}
 					break;
 				}
@@ -431,6 +440,26 @@ void Server::Close() // 关闭服务器
 
 
 // ROOM
+bool Server::FindRoomMate(unsigned roomNum, unsigned number) // 查找成员
+{
+	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){
+		if (iter->roomNumber == roomNum)
+		{
+			for (vector<unsigned>::iterator iter2 = iter->mateList.begin(); iter2 != iter->mateList.end(); ++iter2){
+				if (*iter2 == number)
+				{
+					return true;
+				}
+			}
+			char sendBuffer[128];
+			sprintf(sendBuffer, "don`t find user_%d\n", number);
+			SendMes(sendBuffer, number);
+			return false;
+		}
+	}
+	return false;
+}
+
 void Server::delRoomMate(ClientParams params) // 从房间成员列表移除
 {
 	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){
@@ -459,7 +488,7 @@ bool Server::CreateRoom(unsigned number) // 创建房间
 {
 	Room room(number);
 	rooms.push_back(room);
-
+	cout << "create room_" << number << endl;
 	return true;
 }
 
@@ -492,6 +521,9 @@ bool Server::EnterRoom(unsigned roomNum, unsigned number) // 进入房间
 				params.roomId = roomNum;
 
 				TxtTranspond(&params, enter);
+				char temp2[20];
+				sprintf(temp2, "you enter room(%d)", roomNum);
+				SendMes(temp2, number);
 
 				return true;
 			}
@@ -506,8 +538,15 @@ bool Server::CloseRoom(unsigned number) // 关闭房间
 	return true;
 }
 
-bool Server::ChangeRoomNumber(unsigned oldNum, unsigned newNum) // 修改房间号
+bool Server::ChangeRoomNumber(unsigned oldNum, unsigned newNum, unsigned number) // 修改房间号
 {
+	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){
+		if (iter->roomNumber == newNum){
+			cout << "room number conflict" << endl;
+			SendMes("room number conflict", number);
+			return false;
+		}
+	}
 	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){
 		if (iter->roomNumber == oldNum){
 			iter->roomNumber = newNum;
@@ -529,4 +568,22 @@ bool Server::IsDigital(char str[]) // 识别数字
 		*str++;
 	}
 	return true;
+}
+
+int Server::FuzzyMatch(char* str) // 模糊匹配
+{
+	string s = str;
+	unsigned start = s.find("/-");
+	unsigned end = s.find("-/");
+	char temp[10];
+
+	if (start == 0 && end < 10000 && end - start>2)
+	{
+		strncpy(temp, s.substr(start + 2, end - 2).c_str(), end - 2 + 1);
+		if (IsDigital(temp))
+		{
+			return atoi(temp);
+		}
+	}
+	return -1;
 }

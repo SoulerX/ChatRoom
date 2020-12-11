@@ -57,7 +57,8 @@ public:
 	static bool CreateRoom(unsigned number); // 创建房间
 	static bool FindRoom(unsigned number); // 查找房间
 	bool CloseRoom(unsigned number); // 关闭房间
-	static bool ChangeRoomNumber(unsigned oldNum, unsigned newNum); // 修改房间号
+	static bool ChangeRoomNumber(unsigned oldNum, unsigned newNum, unsigned number); // 修改房间号
+	static bool FindRoomMate(unsigned roomNum, unsigned number); // 查找成员
 
 	static void delServerMate(ClientParams params); // 从服务器成员列表移除
 	static void delRoomMate(ClientParams params); // 从房间成员列表移除
@@ -69,4 +70,5 @@ public:
 
 	// tool
 	static bool IsDigital(char str[]); // 识别数字
+	static int FuzzyMatch(char* str); // 模糊匹配
 };
