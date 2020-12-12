@@ -20,6 +20,7 @@ static time_t now; // 表
 typedef struct ClientParams{ // 客户端参数
 	unsigned userId;
 	unsigned roomId;
+	bool status;
 }ClientParams;
 
 typedef enum State { // 登录状态
@@ -65,7 +66,7 @@ public:
 
 	static DWORD WINAPI StartThread(LPVOID lpParams);  //线程函数
 	static void Transpond(CMessage message); // 转发函数
-	static void TxtTranspond(ClientParams *clientInfo, char* message); // 转发函数
+	static void TxtTranspond(ClientParams *clientInfo, CMessage* message); // 转发函数
 	static void SendMes(char* message, unsigned number); // 指令消息
 
 	// tool

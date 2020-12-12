@@ -12,7 +12,7 @@ enum PublicType{
 enum MessageType{
 	TXT_MESSAGE = 1, // 文字消息
 	FILE_MESSAGE = 2, // 文件消息
-	FLODER_MESSAGE = 3, // 文件夹消息
+	FOLDER_MESSAGE = 3, // 文件夹消息
 };
 
 typedef struct CMessage{

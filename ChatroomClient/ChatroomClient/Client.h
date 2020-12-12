@@ -34,4 +34,9 @@ public:
 
 	static DWORD WINAPI Client::sendThread(LPVOID lpParam); // 发送
 	static DWORD WINAPI Client::receThread(LPVOID lpParam); // 接收
+	static DWORD WINAPI Client::sendMes(LPVOID lpParam);
+
+	// tool
+	bool IsDigital(char str[]); // 识别数字
+	int FuzzyMatch(const char* str); // 模糊匹配
 };

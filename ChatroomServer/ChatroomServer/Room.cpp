@@ -15,7 +15,7 @@ Room::~Room()
 unsigned Room::InChatroom(unsigned mateId) // 进入聊天室
 {
 	mateList.push_back(mateId);
-	cout << mateId << " - enter room(" << roomNumber <<") - "<< roomName << endl << endl;
+	cout << mateId << " - enter room(" << roomNumber <<") - "<< roomName << endl;
 	return roomNumber;
 }
 
@@ -25,7 +25,7 @@ void Room::OutChatroom(unsigned mateId) // 离开聊天室
 	{
 		if (mateId == *iter){
 			mateList.erase(iter);
-			cout << mateId << " - leave room(" << roomNumber << ")\n" << endl;
+			cout << mateId << " - leave room(" << roomNumber << ")" << endl;
 			break;
 		}
 	}

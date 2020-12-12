@@ -1,5 +1,7 @@
 #include "Server.h"
 
+using namespace std;
+
 Server::Server(CommunicationType type)
 {
 	// 版本检查
@@ -40,6 +42,7 @@ Server::~Server()
 {
 	Close();
 }
+
 
 // SERVER
 bool Server::Init(CommunicationType type) // 初始化服务器
@@ -126,52 +129,61 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 	while (params.roomId = LoginStatus(params.userId))
 	{
 		if (params.roomId != -1)
+		{
+			params.status = true;
 			break;
+		}
 	}
 
-	char lpBuffer[1024];
+	CMessage recvMes;
+
 	while (1)
 	{
-		int receByte = recv(clientSocket[params.userId - 1], lpBuffer, sizeof(lpBuffer), 0);
+		params.roomId = SyncRoomNumber(params.userId);
+		int receByte = recv(clientSocket[params.userId - 1], (char*)&recvMes, sizeof(CMessage), 0);
 		if (receByte == -1)
 		{
-			int reReceByte = recv(clientSocket[params.userId - 1], lpBuffer, sizeof(lpBuffer), 0);
+			int reReceByte = recv(clientSocket[params.userId - 1], (char*)&recvMes, sizeof(CMessage), 0);
 			if (reReceByte == -1)
 			{
+				params.status = false;
 				// 从服务器成员列表移除
 				delServerMate(params);
 				// 从房间成员列表移除
 				delRoomMate(params);
+
 				break;
 			}
 			continue;
 		}
 		else
 		{
-			if (strcmp(lpBuffer, "exit\n") == 0) // 返回大厅
+			if (strcmp(recvMes.messageBuffer, "exit") == 0) // 返回大厅
 			{
 				// 从房间成员列表移除
 				delRoomMate(params);
 				params.roomId = -1;
+				params.status = false;
 			}
-			else if (strcmp(lpBuffer, "connect\n") == 0) // 连接房间
+			else if (strcmp(recvMes.messageBuffer, "connect") == 0) // 连接房间
 			{
 				while (params.roomId = LoginStatus(params.userId))
 				{
+					cout << "roomid:" << params.roomId << endl;
 					if (params.roomId != -1)
 					{
+						params.status = true;
 						break;
 					}
 				}
 			}
-				
+
 			(void)time(&now);
 			timer = ctime(&now);
-			cout << "time: " << timer << "receive form client_" << params.userId << " message: " << lpBuffer << endl;
+			cout << "time: " << timer << "receive form client_" << params.userId << " message: " << recvMes.messageBuffer << endl;
 
-			params.roomId = SyncRoomNumber(params.userId);
-
-			TxtTranspond(&params, lpBuffer);
+			if (params.status)
+				TxtTranspond(&params, &recvMes);
 		}
 	}
 
@@ -198,12 +210,12 @@ int Server::LoginStatus(unsigned number)
 
 	SendMes("please input room number:", number);
 
-	char lpBuffer[1024];
+	CMessage recvMes;
 
 	unsigned roomNum;
-	
+
 	while (1){
-		int receByte = recv(clientSocket[number - 1], lpBuffer, sizeof(lpBuffer), 0);
+		int receByte = recv(clientSocket[number - 1], (char*)&recvMes, sizeof(CMessage), 0);
 		if (receByte == -1)
 		{
 			continue;
@@ -213,13 +225,13 @@ int Server::LoginStatus(unsigned number)
 			switch (status)
 			{
 			case InputRB:
-				if (!IsDigital(lpBuffer)) // 输入有误
+				if (!IsDigital(recvMes.messageBuffer)) // 输入有误
 				{
-					SendMes("your input error, please reinput room number:", number);
+					SendMes("your input error, please reinput room number:", number);	
 				}
 				else
 				{
-					roomNum = (unsigned)atoi(lpBuffer);
+					roomNum = (unsigned)atoi(recvMes.messageBuffer);
 					if (FindRoom(roomNum)) // 发现房间号
 					{
 						SendMes("room exist, enter room y/n or change?", number);
@@ -228,16 +240,16 @@ int Server::LoginStatus(unsigned number)
 					else  // 未发现房间号
 					{
 						char str[128];
-						sprintf(str, "room not exist, do yu want to create room_%d y/n?", roomNum);
+						sprintf(str, "room not exist, do you want to create room_%d y/n?", roomNum);
 						SendMes(str, number);
 						status = NotExistR;
 					}
 				}
 				break;
 			case ExistR:
-				if (strcmp(lpBuffer, "y\n")==0 || strcmp(lpBuffer, "n\n")==0 || strcmp(lpBuffer, "Y\n")==0 || strcmp(lpBuffer, "N\n")==0)
+				if (strcmp(recvMes.messageBuffer, "y") == 0 || strcmp(recvMes.messageBuffer, "n") == 0 || strcmp(recvMes.messageBuffer, "Y") == 0 || strcmp(recvMes.messageBuffer, "N") == 0)
 				{
-					if (strcmp(lpBuffer, "y\n")==0 || strcmp(lpBuffer, "Y\n")==0)
+					if (strcmp(recvMes.messageBuffer, "y") == 0 || strcmp(recvMes.messageBuffer, "Y") == 0)
 					{
 						if (EnterRoom(roomNum, number))
 						{
@@ -256,7 +268,7 @@ int Server::LoginStatus(unsigned number)
 						status = InputRB;
 					}
 				}
-				else if (strcmp(lpBuffer, "change\n")==0) // 修改房间号（名称）
+				else if (strcmp(recvMes.messageBuffer, "change") == 0) // 修改房间号（名称）
 				{
 					SendMes("please input new room number:", number);
 					status = ChangeRN;
@@ -267,9 +279,9 @@ int Server::LoginStatus(unsigned number)
 				}
 				break;
 			case NotExistR:
-				if (strcmp(lpBuffer, "y\n") == 0 || strcmp(lpBuffer, "n\n") == 0 || strcmp(lpBuffer, "Y\n") == 0 || strcmp(lpBuffer, "N\n") == 0)
+				if (strcmp(recvMes.messageBuffer, "y") == 0 || strcmp(recvMes.messageBuffer, "n") == 0 || strcmp(recvMes.messageBuffer, "Y") == 0 || strcmp(recvMes.messageBuffer, "N") == 0)
 				{
-					if (strcmp(lpBuffer, "y\n") == 0 || strcmp(lpBuffer, "Y\n") == 0)
+					if (strcmp(recvMes.messageBuffer, "y") == 0 || strcmp(recvMes.messageBuffer, "Y") == 0)
 					{
 						if (rooms.size() >= 3)
 						{
@@ -279,7 +291,7 @@ int Server::LoginStatus(unsigned number)
 						}
 
 						if (CreateRoom(roomNum)) // 创建成功
-						{ 
+						{
 							if (EnterRoom(roomNum, number)) // 进入成功
 							{
 								status = Successed;
@@ -313,13 +325,13 @@ int Server::LoginStatus(unsigned number)
 				}
 				break;
 			case ChangeRN:
-				if (IsDigital(lpBuffer))
+				if (IsDigital(recvMes.messageBuffer))
 				{
-					unsigned newNum = (unsigned)atoi(lpBuffer);
+					unsigned newNum = (unsigned)atoi(recvMes.messageBuffer);
 
 					if (ChangeRoomNumber(roomNum, newNum, number))
 					{
-						cout << "old room num:" << roomNum << " ===>> new room num:" << newNum <<endl;
+						cout << "old room num:" << roomNum << " ===>> new room num:" << newNum << endl;
 						roomNum = newNum;
 						SendMes("room exist, enter room y/n or change?", number);
 						status = ExistR;
@@ -357,31 +369,22 @@ void Server::SendMes(char* message, unsigned number)
 	}
 }
 
-void Server::TxtTranspond(ClientParams *clientInfo, char* message) // 转发函数
+void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函数
 {
-	char sendBuffer[1024];
-
-	sprintf(sendBuffer, "\ntime: %sroom_%d - client_%d : %s\n", timer, clientInfo->roomId, clientInfo->userId, message);
-
-	PublicType publicType = PUBLIC_MESSAGE;
-	unsigned sendObj = FuzzyMatch(message);
-	if (-1 != sendObj)
-	{	
-		if (!FindRoomMate(clientInfo->roomId, sendObj)){
-			cout << "don`t find user_" << sendObj << endl;
-			return;
-		}
-		cout << "find user_" << sendObj << endl;
-		publicType = PRIVATE_MESSAGE;
-	}
-
 	for (vector<Room>::iterator iter1 = rooms.begin(); iter1 != rooms.end();iter1++)
 	{ // 迭代匹配用户
 		if (iter1->roomNumber == clientInfo->roomId)
 		{
 			for (vector<unsigned>::iterator iter = iter1->mateList.begin(); iter != iter1->mateList.end(); iter++)
 			{
-				if (publicType == PUBLIC_MESSAGE && *iter != clientInfo->userId) // 公开发送
+				char sendBuffer[1024];
+
+				(void)time(&now);
+				timer = ctime(&now);
+
+				sprintf(sendBuffer, "time:%suser_%d: %s\n", timer, clientInfo->userId, message->messageBuffer);
+
+				if (message->pType == PUBLIC_MESSAGE && *iter != clientInfo->userId) // 公开发送
 				{
 					int sendByte = send(clientSocket[*iter - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
 					if (sendByte < 0)
@@ -390,19 +393,36 @@ void Server::TxtTranspond(ClientParams *clientInfo, char* message) // 转发函数
 					}
 					else
 					{
-						//cout << "send message to client_" << *iter << " successed:" << message;
+						cout << "transpond message to client_" << *iter << " successed: " << sendBuffer << endl;
 					}
 				}
-				else if (publicType == PRIVATE_MESSAGE && *iter == sendObj) // 单独发送
+				else if (message->pType == PRIVATE_MESSAGE && *iter == message->sendObjId) // 单独发送
 				{
-					int sendByte = send(clientSocket[sendObj - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
-					if (sendByte < 0)
+					if (message->sendObjId == clientInfo->userId)
 					{
-						cout << "send faild" << endl;
+						char sendBuffer[30];
+						sprintf(sendBuffer, "forbid send to yourself");
+						int sendByte = send(clientSocket[clientInfo->userId - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+						if (sendByte < 0)
+						{
+							cout << "send faild" << endl;
+						}
+						else
+						{
+							cout << "forbid send to yourself\n";
+						}
 					}
 					else
 					{
-						cout << "single send message to client_" << *iter << " successed:" << message;
+						int sendByte = send(clientSocket[message->sendObjId - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+						if (sendByte < 0)
+						{
+							cout << "send faild" << endl;
+						}
+						else
+						{
+							cout << "single send message to client_" << *iter << " successed:" << message->messageBuffer;
+						}
 					}
 					break;
 				}
@@ -470,18 +490,55 @@ void Server::delRoomMate(ClientParams params) // 从房间成员列表移除
 				{
 					iter->OutChatroom(*iter2);
 
-					char leave[30] = " - leave room ";
-					char temp[10];
-					_itoa(iter->roomNumber, temp, 10);
-					strcat(leave, temp);
-					strcat(leave, "\n");
-					TxtTranspond(&params, leave);
+					char leave[64];
+					sprintf(leave, "<<=== leave room");
 
-					break;
+					CMessage delMes;
+
+					strcpy(delMes.messageBuffer, leave);
+					delMes.mesLength = sizeof(leave);
+
+					TxtTranspond(&params, &delMes);
+
+					return;
 				}
 			}
 		}
 	}
+}
+
+bool Server::EnterRoom(unsigned roomNum, unsigned number) // 进入房间
+{
+	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){ 
+		if (iter->roomNumber == roomNum){
+			if (iter->GetMateCount() < 3)
+			{
+				iter->InChatroom(number);
+
+				char enter[64];
+				sprintf(enter, " ===>> enter room");
+
+				CMessage enterMes;
+
+				strcpy(enterMes.messageBuffer, enter);
+				enterMes.mesLength = sizeof(enter);
+
+				ClientParams params;
+				params.userId = number;
+				params.roomId = roomNum;
+
+				TxtTranspond(&params, &enterMes);
+
+				char temp2[30];
+				sprintf(temp2, "you enter room(%d)", roomNum);
+				SendMes(temp2, number);
+
+				return true;
+			}
+			return false;
+		}
+	}
+	return false;
 }
 
 bool Server::CreateRoom(unsigned number) // 创建房间
@@ -497,37 +554,6 @@ bool Server::FindRoom(unsigned number) // 查找房间
 	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){
 		if (iter->roomNumber == number){
 			return true;
-		}
-	}
-	return false;
-}
-
-bool Server::EnterRoom(unsigned roomNum, unsigned number) // 进入房间
-{
-	for (vector<Room>::iterator iter = rooms.begin(); iter != rooms.end(); ++iter){ 
-		if (iter->roomNumber == roomNum){
-			if (iter->GetMateCount() < 3)
-			{
-				iter->InChatroom(number);
-
-				char enter[30] = " - enter room ";
-				char temp[10];
-				_itoa(iter->roomNumber, temp, 10);
-				strcat(enter, temp);
-				strcat(enter, "\n");
-
-				ClientParams params;
-				params.userId = number;
-				params.roomId = roomNum;
-
-				TxtTranspond(&params, enter);
-				char temp2[20];
-				sprintf(temp2, "you enter room(%d)", roomNum);
-				SendMes(temp2, number);
-
-				return true;
-			}
-			return false;
 		}
 	}
 	return false;

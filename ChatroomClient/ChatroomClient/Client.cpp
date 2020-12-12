@@ -93,13 +93,19 @@ void Client::Connect()
 
 		if (strcmp(str, "")) // 非空
 		{
-			char sendBuffer[1024];
-			sprintf(sendBuffer, "%s\n", &str);
-
-			int sendByte = send(clientSocket, sendBuffer, sizeof(sendBuffer), 0);
-			if (sendByte <= 0)
+			CMessage sendMessage = TypeRecognition(str);
+			
+			if (sendMessage.mType == FILE_MESSAGE)
 			{
-				cout << "send faild" << endl;
+				cout<<"send file\n";
+			}
+			else if (sendMessage.mType == FOLDER_MESSAGE)
+			{
+				cout << "send folder\n";
+			}
+			else if (sendMessage.mType == TXT_MESSAGE)
+			{
+				CreateThread(NULL, 0, &sendMes, &sendMessage, 0, NULL);
 			}
 		}
 		else
@@ -107,54 +113,6 @@ void Client::Connect()
 			cout << "invalid input\n";
 		}
 	}
-}
-
-CMessage Client::TypeRecognition(string s)
-{
-	CMessage message;
-
-	message.pType = PUBLIC_MESSAGE;
-	message.mType = TXT_MESSAGE;
-	message.roomId = 1;
-	message.userId = 1;
-	message.mesLength = s.length() + 1;
-	strncpy(message.messageBuffer, s.c_str(), s.length() + 1);
-
-	return message;
-}
-
-DWORD WINAPI Client::sendThread(LPVOID lpParam)
-{
-	return 0;
-}
-
-DWORD WINAPI Client::receThread(LPVOID lpParam)
-{
-	char receBuff[1024];
-
-	while (1)
-	{
-		int recvByte = recv(clientSocket, receBuff, sizeof(receBuff), 0);
-
-		CMessage receiveMessage;
-
-		if (recvByte >0)
-		{
-			cout << receBuff << endl;
-		}
-		else
-		{
-			cout << "receive end" << endl;
-			int reRecvByte = recv(clientSocket, receBuff, sizeof(receBuff), 0);
-			if (reRecvByte <= 0)
-			{
-				cout << "break server" << endl;
-			}
-			break;
-		}
-	}
-	closesocket(clientSocket);
-	return 0;
 }
 
 void Client::ReConnect()
@@ -180,3 +138,142 @@ void Client::Close()
 {
 
 }
+
+DWORD WINAPI Client::sendMes(LPVOID lpParam)
+{
+	CMessage* temp = (CMessage*)lpParam;
+
+	CMessage message;
+
+	message.mType = temp->mType;
+	message.pType = temp->pType;
+	message.mesLength = temp->mesLength;
+	strcpy(message.messageBuffer, temp->messageBuffer);
+	message.sendObjId = temp->sendObjId;
+
+	int sendByte = send(clientSocket, (char*)&message, sizeof(CMessage), 0);
+	if (sendByte <= 0)
+	{
+		cout << "send faild" << endl;
+	}
+	return 0;
+}
+
+DWORD WINAPI Client::sendThread(LPVOID lpParam)
+{
+	char* str = (char*)lpParam;
+
+	char sendBuffer[1024];
+	sprintf(sendBuffer, "%s\n", &str);
+
+	int sendByte = send(clientSocket, sendBuffer, sizeof(sendBuffer), 0);
+	if (sendByte <= 0)
+	{
+		cout << "send faild" << endl;
+	}
+	return 0;
+}
+
+DWORD WINAPI Client::receThread(LPVOID lpParam)
+{
+	char receBuff[1024];
+
+	while (1)
+	{
+		int recvByte = recv(clientSocket, receBuff, sizeof(receBuff), 0);
+
+		if (recvByte >0)
+		{
+			cout << receBuff << endl;
+		}
+		else
+		{
+			cout << "receive end" << endl;
+			int reRecvByte = recv(clientSocket, receBuff, sizeof(receBuff), 0);
+			if (reRecvByte <= 0)
+			{
+				cout << "break server" << endl;
+			}
+			break;
+		}
+	}
+	closesocket(clientSocket);
+	return 0;
+}
+
+
+// TOOL
+bool Client::IsDigital(char str[]) // 识别数字
+{
+	while (*str){
+		if ((*str < '0' || *str > '9') && *str != '\n')
+		{
+			return false;
+		}
+		*str++;
+	}
+	return true;
+}
+
+int Client::FuzzyMatch(const char* str) // 模糊匹配
+{
+	string s = str;
+	unsigned start = s.find("/-");
+	unsigned end = s.find("-/");
+	char temp[10];
+
+	if (start == 0 && end < 10000 && end - start>2)
+	{
+		strncpy(temp, s.substr(start + 2, end - 2).c_str(), end - 2 + 1);
+		if (IsDigital(temp))
+		{
+			return atoi(temp);
+		}
+	}
+	return -1;
+}
+
+CMessage Client::TypeRecognition(string s)
+{
+	CMessage message;
+
+	message.sendObjId = FuzzyMatch(s.c_str());
+
+	if (-1 != message.sendObjId)
+	{
+		int start = s.find("-/");
+	
+		message.mesLength = s.length() + 1 - start + 2;
+
+		string newStr = s.substr(start + 2, message.mesLength);
+	
+		strncpy(message.messageBuffer, newStr.c_str(), newStr.length() + 1);
+
+		message.pType = PRIVATE_MESSAGE;
+	}
+	else
+	{
+		message.mesLength = s.length() + 1;
+		strncpy(message.messageBuffer, s.c_str(), s.length() + 1);
+		message.pType = PUBLIC_MESSAGE;
+	}
+
+	WIN32_FIND_DATAA FindFileData;
+
+	FindFirstFileA(s.c_str(), &FindFileData);
+
+	if (s.find(":/") < 10000 || s.find(":\\") < 10000)
+	{
+		if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			message.mType = FOLDER_MESSAGE;
+		else
+			message.mType = FILE_MESSAGE;
+	}
+	else
+	{
+		message.mType = TXT_MESSAGE;
+	}
+
+	return message;
+}
+
