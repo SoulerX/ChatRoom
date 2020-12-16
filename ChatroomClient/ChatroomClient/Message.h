@@ -28,3 +28,14 @@ typedef struct CMessage{
 	char messageBuffer[1024]; // ÏûÏ¢ÄÚÈİ
 
 }CMessage;
+
+typedef struct FMessage{
+	bool finish;
+	unsigned length;
+	char sendMessage[2000];
+}FMessage;
+
+typedef struct ClientInfo{
+	char sendObj[10];
+	char sendFile[1024];
+}ClientInfo;

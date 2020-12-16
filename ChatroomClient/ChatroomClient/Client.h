@@ -9,6 +9,12 @@ static char *timer;
 
 static time_t now;
 
+static vector<string>fileName;
+
+static int fd;
+
+static bool rf;
+
 class Client
 {
 	WSADATA wsaData;
@@ -34,7 +40,9 @@ public:
 
 	static DWORD WINAPI Client::sendThread(LPVOID lpParam); // 发送
 	static DWORD WINAPI Client::receThread(LPVOID lpParam); // 接收
-	static DWORD WINAPI Client::sendMes(LPVOID lpParam);
+	static DWORD WINAPI Client::SendFile(LPVOID lpParam); // 发送文件
+	static DWORD WINAPI Client::RecvFile(LPVOID lpParams);
+	static void SendMes(char* message);
 
 	// tool
 	bool IsDigital(char str[]); // 识别数字

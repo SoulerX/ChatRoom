@@ -1,4 +1,5 @@
 #include "Server.h"
+#include <iostream>
 
 using namespace std;
 
@@ -47,6 +48,10 @@ Server::~Server()
 // SERVER
 bool Server::Init(CommunicationType type) // 初始化服务器
 {
+	UDP udp;
+
+	fd = udp.serverSocketInit();
+
 	if (TCP_COMMUNICATION == type)
 	{
 		// 创建SOCKET
@@ -137,6 +142,10 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 
 	CMessage recvMes;
 
+	char fileName[128];
+
+	bool ac = true;
+
 	while (1)
 	{
 		params.roomId = SyncRoomNumber(params.userId);
@@ -177,6 +186,36 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 					}
 				}
 			}
+			else if (strcmp(recvMes.messageBuffer, "accept") == 0 && ac) // 文件转发
+			{
+				if (1)
+				{
+					cout << "send file to user_" << params.userId << endl;
+					
+					CreateThread(NULL, 0, &SendFileThread, 0, 0, NULL);
+					continue;
+				}
+			}
+			else if (recvMes.mType == FILE_MESSAGE) // 文件转发授权
+			{
+				string s = recvMes.messageBuffer;
+				int start = s.find_last_of("\\");
+				strncpy(fileName, s.substr(start + 1, s.length() - start).c_str(), s.length() - start + 1);
+				char temp[128];
+				sprintf(temp, "%s, accept or refuse?", fileName);
+				strcpy(recvMes.messageBuffer, temp);
+				recvMes.mesLength = sizeof(recvMes.messageBuffer);
+
+				char sendBuffer[2000] = "accept1";
+				SendMes(sendBuffer, params.userId);
+			
+				globalClient.number = params.userId;
+				strcpy(globalClient.sendFile, fileName);
+
+				CreateThread(NULL, 0, RecvFileThread, 0, 0, NULL); // 本地存储
+
+				ac = false;
+			}
 
 			(void)time(&now);
 			timer = ctime(&now);
@@ -189,6 +228,153 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 
 	// 关闭socket
 	closesocket(clientSocket[params.userId - 1]);
+
+	return 0;
+}
+
+DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
+{
+	struct sockaddr_in* p_remoteAddr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+	PackInfo pack = { 0, 0, { 0 } };
+	BackInfo back;
+
+
+	printf("waiting for message...\n");
+	int ret = 0;
+
+	back.id = 1;
+	pack.id = 0;
+	if ((ret = UDP::serverRecvMessage(&pack, fd, p_remoteAddr)) == -1)
+	{
+		printf("the first package recv error");
+		exit(1);
+	}
+	else
+	{
+		printf(" %d\n", pack.id);
+		printf("success recv pack id:%d\n", pack.id);	
+	}
+
+	FILE* fp = fopen(globalClient.sendFile, "wb+");
+	fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+
+	while (1)
+	{
+
+		if (UDP::serverSendMessage(&back, fd, p_remoteAddr) == -1)
+		{
+			printf("send error! pack_id:%d\n", back.id);
+			continue;
+		}
+
+		if (strlen(pack.buf) < BUFSIZE - 1)
+		{
+			printf("receive finish\n");
+			break;
+		}
+		memset(pack.buf, 0, sizeof(pack.buf));
+		if (ret = UDP::serverRecvMessage(&pack, fd, p_remoteAddr) == -1)
+		{
+			printf("recv error! pack_id:%d\n", back.id + 1);
+		}
+		else
+		{
+			printf(" %d\n", pack.id);
+			//pack.id++;
+		}
+
+		if (pack.id == (back.id + 1))
+		{
+			back.id++;
+			fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+			printf("success recv pack id:%d\n", pack.id);
+		}
+		else
+		{
+			printf("failed recv pack id[%d]\n", pack.id + 1);
+		}
+	}
+	fclose(fp);
+	return 0;
+}
+
+DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
+{
+	cout << "start send\n";
+	struct sockaddr_in* p_remoteAddr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+
+	FILE* fp = fopen(globalClient.sendFile, "rb+");
+	if (fp == NULL)
+	{
+		printf("file open error");
+		exit(1);
+	}
+
+	RBackInfo back;
+	RPackInfo pack;
+	int id = 1;
+
+	if (UDP::rserverRecvMessage(&back, fd, p_remoteAddr) != -1) // 获取对方地址
+	{
+		printf("recv client_addr\n");
+	}
+
+	while (1)
+	{
+		//使文件fp的位置指针指向文件开始
+		rewind(fp);
+		
+		pack.id = id;
+		memset(pack.buf, 0, sizeof(pack.buf)); //清空
+
+
+		//重定位流上的文件指针 成功返回0
+		//第一个参数stream为文件指针
+		//第二个参数offset为偏移量，整数表示正向偏移，负数表示负向偏移
+		//第三个参数origin设定从文件的哪里开始偏移, 可能取值为：SEEK_CUR、 SEEK_END 或 SEEK_SET
+		//SEEK_SET： 文件开头
+		//SEEK_CUR： 当前位置
+		//SEEK_END： 文件结尾
+		//其中SEEK_SET, SEEK_CUR和SEEK_END和依次为0，1和2.
+		if (fseek(fp, (pack.id - 1)*(BUFSIZE - 1), SEEK_SET) != 0)
+		{
+			printf("fseek error");
+			fclose(fp);
+			exit(1);
+		}
+
+		//buffer   是读取的数据存放的内存的指针（可以是数组，也可以是新开辟的空间，buffer就是一个索引）
+		//size     是每次读取的字节数
+		//count    是读取次数
+		//stream   是要读取的文件的指针
+		int fret = fread(pack.buf, 1, BUFSIZE - 1, fp);
+		if (fret == 0)
+		{
+			printf("send finish\n");
+			break;
+		}
+
+		pack.buf[fret] = '\0'; // BUFSIZE 结尾
+
+		//cout << "buf:" << pack.buf << endl;
+
+		if (UDP::rserverSendMessage(&pack, fd, p_remoteAddr) == -1)
+		{
+			printf("send error pack id:%d\n", pack.id);
+			continue;
+		}
+		if (UDP::rserverRecvMessage(&back, fd, p_remoteAddr) == -1)
+		{
+			printf("recv error pack id:%d\n", pack.id);
+		}
+		if (pack.id == back.id)
+		{
+			printf("\nsuccess pack id:%d\n", pack.id);
+			id++;
+		}
+		memset(pack.buf, 0, BUFSIZE);
+	}
+	fclose(fp);
 
 	return 0;
 }
@@ -393,7 +579,7 @@ void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函
 					}
 					else
 					{
-						cout << "transpond message to client_" << *iter << " successed: " << sendBuffer << endl;
+						//cout << "transpond message to client_" << *iter << " successed: " << sendBuffer;
 					}
 				}
 				else if (message->pType == PRIVATE_MESSAGE && *iter == message->sendObjId) // 单独发送
@@ -421,7 +607,7 @@ void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函
 						}
 						else
 						{
-							cout << "single send message to client_" << *iter << " successed:" << message->messageBuffer;
+							//cout << "single send message to client_" << *iter << " successed:" << message->messageBuffer;
 						}
 					}
 					break;
@@ -429,11 +615,6 @@ void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函
 			}
 		}
 	}
-}
-
-void Server::Transpond(CMessage message) // 转发函数
-{
-	
 }
 
 void Server::delServerMate(ClientParams params) // 从服务器成员列表移除
@@ -596,7 +777,7 @@ bool Server::IsDigital(char str[]) // 识别数字
 	return true;
 }
 
-int Server::FuzzyMatch(char* str) // 模糊匹配
+int Server::FuzzyMatch(const char* str) // 模糊匹配
 {
 	string s = str;
 	unsigned start = s.find("/-");
@@ -613,3 +794,48 @@ int Server::FuzzyMatch(char* str) // 模糊匹配
 	}
 	return -1;
 }
+
+CMessage Server::TypeRecognition(string s)
+{
+	CMessage message;
+
+	message.sendObjId = FuzzyMatch(s.c_str());
+
+	if (-1 != message.sendObjId)
+	{
+		int start = s.find("-/");
+
+		message.mesLength = s.length() + 1 - start + 2;
+
+		string newStr = s.substr(start + 2, message.mesLength);
+
+		strncpy(message.messageBuffer, newStr.c_str(), newStr.length() + 1);
+
+		message.pType = PRIVATE_MESSAGE;
+	}
+	else
+	{
+		message.mesLength = s.length() + 1;
+		strncpy(message.messageBuffer, s.c_str(), s.length() + 1);
+		message.pType = PUBLIC_MESSAGE;
+	}
+
+	WIN32_FIND_DATAA FindFileData;
+
+	FindFirstFileA(s.c_str(), &FindFileData);
+
+	if (s.find(":/") >= 0 && s.find(":/") < 10000 || s.find(":\\") >= 0 && s.find(":\\") < 10000)
+	{
+		if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			message.mType = FOLDER_MESSAGE;
+		else
+			message.mType = FILE_MESSAGE;
+	}
+	else
+	{
+		message.mType = TXT_MESSAGE;
+	}
+
+	return message;
+}
+

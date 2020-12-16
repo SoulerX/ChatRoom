@@ -28,3 +28,9 @@ typedef struct CMessage{
 	char messageBuffer[1024]; // 消息内容
 
 }CMessage;
+
+typedef struct FMessage{
+	bool finish; // 本次发送是否完成 
+	unsigned length; // 发送长度
+	char sendMessage[2000]; // 发送内容
+}FMessage;

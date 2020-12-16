@@ -17,6 +17,15 @@ static char *timer; // 时间
 
 static time_t now; // 表
 
+static int fd; // udp socket
+
+typedef struct ClientInfo{ // 文件发送参数
+	unsigned number;
+	char sendFile[1024];
+}ClientInfo;
+
+static ClientInfo globalClient;
+
 typedef struct ClientParams{ // 客户端参数
 	unsigned userId;
 	unsigned roomId;
@@ -41,7 +50,6 @@ class Server
 
 	unsigned count = 0; // 分配用户编号
 
-
 public:
 	Server(CommunicationType type = TCP_COMMUNICATION); // 默认TCP初始化
 	~Server();
@@ -64,12 +72,14 @@ public:
 	static void delServerMate(ClientParams params); // 从服务器成员列表移除
 	static void delRoomMate(ClientParams params); // 从房间成员列表移除
 
+	static DWORD WINAPI RecvFileThread(LPVOID lpParams);  //线程函数
+	static DWORD WINAPI SendFileThread(LPVOID lpParams);  //线程函数
 	static DWORD WINAPI StartThread(LPVOID lpParams);  //线程函数
-	static void Transpond(CMessage message); // 转发函数
 	static void TxtTranspond(ClientParams *clientInfo, CMessage* message); // 转发函数
 	static void SendMes(char* message, unsigned number); // 指令消息
 
 	// tool
 	static bool IsDigital(char str[]); // 识别数字
-	static int FuzzyMatch(char* str); // 模糊匹配
+	static int FuzzyMatch(const char* str); // 模糊匹配
+	static CMessage Server::TypeRecognition(string s); // 消息识别
 };

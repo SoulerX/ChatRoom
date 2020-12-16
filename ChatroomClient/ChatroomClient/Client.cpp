@@ -1,4 +1,5 @@
 #include "Client.h"
+#include "UDP.h"
 
 
 Client::Client(CommunicationType type) // 默认TCP初始化
@@ -45,6 +46,12 @@ Client::~Client()
 
 bool Client::Init(CommunicationType type) // 初始化客户端
 {
+	rf = false;
+
+	UDP udp;
+
+	fd = udp.clientSocketInit();
+
 	if (type == TCP_COMMUNICATION)
 	{
 		clientSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -95,18 +102,7 @@ void Client::Connect()
 		{
 			CMessage sendMessage = TypeRecognition(str);
 			
-			if (sendMessage.mType == FILE_MESSAGE)
-			{
-				cout<<"send file\n";
-			}
-			else if (sendMessage.mType == FOLDER_MESSAGE)
-			{
-				cout << "send folder\n";
-			}
-			else if (sendMessage.mType == TXT_MESSAGE)
-			{
-				CreateThread(NULL, 0, &sendMes, &sendMessage, 0, NULL);
-			}
+			CreateThread(NULL, 0, &sendThread, &sendMessage, 0, NULL);
 		}
 		else
 		{
@@ -139,7 +135,7 @@ void Client::Close()
 
 }
 
-DWORD WINAPI Client::sendMes(LPVOID lpParam)
+DWORD WINAPI Client::sendThread(LPVOID lpParam)
 {
 	CMessage* temp = (CMessage*)lpParam;
 
@@ -156,21 +152,15 @@ DWORD WINAPI Client::sendMes(LPVOID lpParam)
 	{
 		cout << "send faild" << endl;
 	}
-	return 0;
-}
-
-DWORD WINAPI Client::sendThread(LPVOID lpParam)
-{
-	char* str = (char*)lpParam;
-
-	char sendBuffer[1024];
-	sprintf(sendBuffer, "%s\n", &str);
-
-	int sendByte = send(clientSocket, sendBuffer, sizeof(sendBuffer), 0);
-	if (sendByte <= 0)
+	else
 	{
-		cout << "send faild" << endl;
+		if ((strcmp(message.messageBuffer, "accept") == 0) && (rf == true))
+		{
+			rf = false;
+			CreateThread(NULL, 0, &RecvFile, 0, 0, NULL);
+		}
 	}
+	
 	return 0;
 }
 
@@ -185,6 +175,29 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 		if (recvByte >0)
 		{
 			cout << receBuff << endl;
+
+			string s = receBuff;
+
+			int start = s.find_last_of(":");
+
+			int end = s.find("accept or refuse?");
+
+			if ( end >= 0 && end < 10000)
+			{
+				string temp = s.substr(start + 2, end - start - 4);
+				cout << "temp:" << temp << endl;
+				fileName.push_back(temp);
+				rf = true;
+			}
+
+
+			int start2 = s.find("accept1");
+
+			if (start2>=0 && start2 < 10000)
+			{
+				CreateThread(NULL, 0, &SendFile, lpParam, 0, NULL);
+			}
+			
 		}
 		else
 		{
@@ -199,6 +212,169 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 	}
 	closesocket(clientSocket);
 	return 0;
+}
+
+DWORD WINAPI Client::SendFile(LPVOID lpParam)
+{
+	int port = 8888;
+	char addr[] = "127.0.0.1";
+
+	//规定对于客户端的目的地址的一些参数
+	struct sockaddr_in serAddr;
+	serAddr.sin_family = AF_INET;
+	serAddr.sin_port = htons(port);
+	serAddr.sin_addr.S_un.S_addr = inet_addr(addr);
+
+	FILE* fp = fopen(fileName[0].c_str(), "rb+");
+	if (fp == NULL)
+	{
+		printf("file open error");
+		exit(1);
+	}
+
+	BackInfo back;
+
+	int id = 1;
+
+	while (1)
+	{
+		rewind(fp);
+		PackInfo pack;
+		pack.id = id;
+
+		if (fseek(fp, (pack.id - 1)*(BUFSIZE - 1), SEEK_SET) != 0)
+		{
+			printf("fseek error");
+			fclose(fp);
+			exit(1);
+		}
+
+		int fret = fread(pack.buf, 1, BUFSIZE - 1, fp);
+		if (fret == 0)
+		{
+			printf("send finish\n");
+			break;
+		}
+		pack.buf[fret] = '\0';
+		if (UDP::clientSendMessage(&pack, fd, &serAddr) == -1)
+		{
+			printf("send error pack id:%d\n", pack.id);
+			continue;
+		}
+		if (UDP::clientRecvMessage(&back, fd) == -1)
+		{
+			printf("recv error pack id:%d\n", pack.id);
+		}
+		if (pack.id == back.id)
+		{
+			printf("\nsuccess pack id:%d\n", pack.id);
+			id++;
+		}
+		memset(pack.buf, 0, BUFSIZE);
+	}
+	fclose(fp);
+	return 0;
+}
+
+DWORD WINAPI Client::RecvFile(LPVOID lpParams)
+{
+	int port = 8888;
+	char addr[] = "127.0.0.1";
+
+	//规定对于客户端的目的地址的一些参数
+	struct sockaddr_in serAddr;
+	serAddr.sin_family = AF_INET;
+	serAddr.sin_port = htons(port);
+	serAddr.sin_addr.S_un.S_addr = inet_addr(addr);
+
+	cout << "start recv\n";
+
+	printf("waiting for message...\n");
+
+	RPackInfo pack = { 0, 0, { 0 } };
+	pack.id = 0;
+
+	RBackInfo back;
+	back.id = 1;
+
+	if (UDP::rclientSendMessage(&back, fd, &serAddr) != -1) // 先发送地址信息
+	{
+		printf("send addr\n");
+	}
+
+
+	int ret = 0;
+
+	if ((ret = UDP::rclientRecvMessage(&pack, fd)) == -1)
+	{
+		printf("the first package recv error");
+		exit(1);
+	}
+	else
+	{
+		printf(" %d\n", pack.id);
+		printf("success recv pack id:%d\n", pack.id);
+	}
+
+	FILE* fp = fopen(fileName[0].c_str(), "wb+");
+	fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+
+	while (1)
+	{
+
+		if (UDP::rclientSendMessage(&back, fd, &serAddr) == -1)
+		{
+			printf("send error! pack_id:%d\n", back.id);
+			continue;
+		}
+
+		if (strlen(pack.buf) < BUFSIZE - 1) //长度不足 BUFSIZE - 1
+		{
+			printf("receive finish\n");
+			break;
+		}
+
+		memset(pack.buf, 0, sizeof(pack.buf)); // 清空
+
+		if (ret = UDP::rclientRecvMessage(&pack, fd) == -1)
+		{
+			printf("recv error! pack_id:%d\n", back.id + 1);
+		}
+		else
+		{
+			printf(" %d\n", pack.id);
+		}
+
+		if (pack.id == (back.id + 1))
+		{
+			back.id++;
+			fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+			printf("success recv pack id:%d\n", pack.id);
+		}
+		else
+		{
+			printf("failed recv pack id[%d]\n", pack.id + 1);
+		}
+	}
+	fclose(fp);
+	return 0;
+}
+
+void Client::SendMes(char* message)
+{
+	char sendBuffer[128];
+
+	sprintf(sendBuffer, "%s", message);
+
+	int sendByte = send(clientSocket, sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+	if (sendByte < 0)
+	{
+		cout << "send faild" << endl;
+	}
+	else
+	{
+		cout << "----"<<sendBuffer << endl;
+	}
 }
 
 
@@ -239,13 +415,15 @@ CMessage Client::TypeRecognition(string s)
 
 	message.sendObjId = FuzzyMatch(s.c_str());
 
+	string newStr;
+
 	if (-1 != message.sendObjId)
 	{
 		int start = s.find("-/");
 	
 		message.mesLength = s.length() + 1 - start + 2;
 
-		string newStr = s.substr(start + 2, message.mesLength);
+		newStr = s.substr(start + 2, message.mesLength);
 	
 		strncpy(message.messageBuffer, newStr.c_str(), newStr.length() + 1);
 
@@ -260,14 +438,24 @@ CMessage Client::TypeRecognition(string s)
 
 	WIN32_FIND_DATAA FindFileData;
 
-	FindFirstFileA(s.c_str(), &FindFileData);
+	FindFirstFileA(message.messageBuffer, &FindFileData);
+	
+	if (newStr.size()<=0)
+	{
+		newStr = message.messageBuffer;
+	}
 
-	if (s.find(":/") < 10000 || s.find(":\\") < 10000)
+	if (newStr.find(":\\") >= 0 && newStr.find(":\\") < 10000)
 	{
 		if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
 			message.mType = FOLDER_MESSAGE;
+		}
 		else
+		{
+			fileName.push_back(newStr);
 			message.mType = FILE_MESSAGE;
+		}
 	}
 	else
 	{
