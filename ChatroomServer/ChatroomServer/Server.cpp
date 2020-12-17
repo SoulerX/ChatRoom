@@ -148,7 +148,7 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 
 	while (1)
 	{
-		params.roomId = SyncRoomNumber(params.userId);
+		params.roomId = SyncRoomNumber(params.userId); // BUG:发消息前同步房间号， 也许无法第一时间同步
 		int receByte = recv(clientSocket[params.userId - 1], (char*)&recvMes, sizeof(CMessage), 0);
 		if (receByte == -1)
 		{
@@ -251,7 +251,7 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 	}
 	else
 	{
-		printf(" %d\n", pack.id);
+		printf(" %d-%d\n", pack.id,strlen(pack.buf));
 		printf("success recv pack id:%d\n", pack.id);	
 	}
 
@@ -269,6 +269,7 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 
 		if (strlen(pack.buf) < BUFSIZE - 1)
 		{
+			cout << "pack.buf:" << strlen(pack.buf) << endl;
 			printf("receive finish\n");
 			break;
 		}
@@ -519,7 +520,7 @@ int Server::LoginStatus(unsigned number)
 					{
 						cout << "old room num:" << roomNum << " ===>> new room num:" << newNum << endl;
 						roomNum = newNum;
-						SendMes("room exist, enter room y/n or change?", number);
+						SendMes("change room name, enter room y/n or change?", number);
 						status = ExistR;
 					}
 				}

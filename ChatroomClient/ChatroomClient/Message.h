@@ -1,4 +1,6 @@
 
+#define BUFSIZE 512
+
 enum CommunicationType{
 	TCP_COMMUNICATION = 1, // TCP
 	UDP_COMMUNICATION = 2, // UDP
@@ -39,3 +41,27 @@ typedef struct ClientInfo{
 	char sendObj[10];
 	char sendFile[1024];
 }ClientInfo;
+
+typedef struct PackInfo
+{
+	int id;
+	char buf[BUFSIZE];
+}PackInfo;
+
+typedef struct BackInfo
+{
+	int id;
+	int status;
+}BackInfo;
+
+typedef struct RPackInfo
+{
+	int id;
+	char buf[BUFSIZE];
+}RPackInfo;
+
+typedef struct RBackInfo
+{
+	int id;
+	int status;
+}RBackInfo;

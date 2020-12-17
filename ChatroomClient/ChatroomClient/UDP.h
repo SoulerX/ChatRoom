@@ -1,37 +1,14 @@
 #include "stdafx.h"
+#include "Message.h"
 
-#define BUFSIZE 512
-
-typedef struct PackInfo
-{
-	int id;
-	char buf[BUFSIZE];
-}PackInfo;
-
-typedef struct BackInfo
-{
-	int id;
-	int status;
-}BackInfo;
-
-typedef struct RPackInfo
-{
-	int id;
-	char buf[BUFSIZE];
-}RPackInfo;
-
-typedef struct RBackInfo
-{
-	int id;
-	int status;
-}RBackInfo;
 
 class UDP
 {
 
 public:
 
-	int clientSocketInit();
+	SOCKET udpSocketInit();
+	sockaddr_in udpAddrConfig();
 
 	static int clientSendMessage(PackInfo* pack, int cliSocket, struct sockaddr_in* p_serAddr);
 	static int clientRecvMessage(BackInfo* back, int cliSocket);

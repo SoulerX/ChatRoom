@@ -1,6 +1,6 @@
 #include "UDP.h"
 
-int UDP::clientSocketInit()
+SOCKET UDP::udpSocketInit()
 {
 	//执行WSAStarup函数
 	WSADATA wsaData;
@@ -17,7 +17,25 @@ int UDP::clientSocketInit()
 		printf("socket error !");
 		return 0;
 	}
+
 	return cliSocket;
+}
+
+sockaddr_in UDP::udpAddrConfig()
+{
+	int port = 20000;
+	char addr[] = "192.168.1.87";
+
+	sockaddr_in serAddr;
+
+	//规定对于客户端的目的地址的一些参数
+	memset(&serAddr, 0, sizeof(sockaddr_in)); //每个字节都用0填充
+	serAddr.sin_family = AF_INET;
+	serAddr.sin_port = htons(port);
+	serAddr.sin_addr.S_un.S_addr = inet_addr(addr);
+	memset(&serAddr.sin_zero, 0, 8);
+
+	return serAddr;
 }
 
 int UDP::clientSendMessage(PackInfo* pack, int cliSocket, struct sockaddr_in* p_serAddr)
@@ -34,6 +52,8 @@ int UDP::clientSendMessage(PackInfo* pack, int cliSocket, struct sockaddr_in* p_
 		return -1;
 	}
 	printf("send %d bytes", ret);
+	printf(" pack.buf:" ,strlen(pack->buf));
+
 	return ret;
 }
 

@@ -1,133 +1,64 @@
 #include "Client.h"
-#include "UDP.h"
 
-
-Client::Client(CommunicationType type) // 默认TCP初始化
+Client::Client() // 默认TCP初始化
 {
-	WORD require = MAKEWORD(2, 2);
-
-	if (WSAStartup(require, &wsaData) != 0)
-	{
-		cout << "loading winsock faild" << endl;
-		return;
-	}
-	cout << "loading winsock successed" << endl;
-
-	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
-	{
-		cout << "request version faild" << endl;
-		return;
-	}
+	Init();
 	cout << "loading version successed" << endl;
-
-	if (Init(type))
-	{
-		cout << "init finish\n\n\n" << endl;
-		cout << "\t\t\t\t ChatRoom 多人聊天程序 \n";
-		cout << "\t\t\t *************【Client】************* \n";
-		(void)time(&now);
-		timer = ctime(&now);
-		cout << "\t\t\t\t" << timer << endl;
-		cout << "-----------------------------------------------------------------------------------------------" << endl;
-	}
-	else
-	{
-		cout << "init faild" << endl;
-	}
+	cout << "\t\t\t\t ChatRoom 多人聊天程序 \n";
+	cout << "\t\t\t *************【Client】************* \n";
+	(void)time(&now);
+	timer = ctime(&now);
+	cout << "\t\t\t\t" << timer << endl;
+	cout << "-----------------------------------------------------------------------------------------------" << endl;
 }
 
 Client::~Client()
 {
-	closesocket(clientSocket);
+	closesocket(tcpSocket);
 	WSACleanup();
 
 	Close();
 }
 
-bool Client::Init(CommunicationType type) // 初始化客户端
+void Client::Init() // 初始化客户端
 {
 	rf = false;
 
-	UDP udp;
+	udpSocket = udp.udpSocketInit();
+	serAddr = udp.udpAddrConfig();
 
-	fd = udp.clientSocketInit();
-
-	if (type == TCP_COMMUNICATION)
-	{
-		clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-
-		if (clientSocket == -1)
-		{
-			cout << "create socket faild" << endl;
-			return false;
-		}
-		cout << "create socket successed" << endl;
-
-		sockaddr_in addr;
-		addr.sin_family = AF_INET;
-		//addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");//10.230.136.55 
-		addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.87");
-		addr.sin_port = htons(25000);
-
-		int b;
-		b = connect(clientSocket, (sockaddr*)&addr, sizeof(addr));//
-		if (b == -1)
-		{
-			cout << WSAGetLastError() << endl;
-			cout << "connect faild" << endl;
-			return false;
-		}
-		cout << "server has been successfully connected, you can send message" << endl;
-
-		return true;
-	}
-	else
-	{
-		// TODO: udp
-		return false;
-	}
+	tcpSocket = tcp.tcpSocketInit();
 }
 
 void Client::Connect()
 {
-	char str[1024];
+	if (tcp.TcpConnect(tcpSocket)) // tcp连接成功
+	{
+		CreateThread(NULL, 0, &receThread, 0, 0, NULL); // 开启接收线程
+	}
 
-	CreateThread(NULL, 0, &receThread, 0, 0, NULL);
+	char str[1024];
 
 	while (1)
 	{
-		gets_s(str);
+		gets_s(str); // 获取输入
 
 		if (strcmp(str, "")) // 非空
 		{
-			CMessage sendMessage = TypeRecognition(str);
+			CMessage sendMessage = TypeRecognition(str); // 识别输入消息类型
 			
-			CreateThread(NULL, 0, &sendThread, &sendMessage, 0, NULL);
+			CreateThread(NULL, 0, &sendThread, &sendMessage, 0, NULL); // 发送线程
 		}
 		else
 		{
-			cout << "invalid input\n";
+			cout << "invalid input\n"; // 输入非法
 		}
 	}
 }
 
 void Client::ReConnect()
 {
-	sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");//10.230.136.55 
-	addr.sin_port = htons(25000);
 
-	int b;
-	b = connect(clientSocket, (sockaddr*)&addr, sizeof(addr));//
-	if (b == -1)
-	{
-		cout << WSAGetLastError() << endl;
-		cout << "connect faild" << endl;
-		return;
-	}
-	cout << "server has been successfully connected, you can send message" << endl;
-	return;
 }
 
 void Client::Close()
@@ -147,7 +78,7 @@ DWORD WINAPI Client::sendThread(LPVOID lpParam)
 	strcpy(message.messageBuffer, temp->messageBuffer);
 	message.sendObjId = temp->sendObjId;
 
-	int sendByte = send(clientSocket, (char*)&message, sizeof(CMessage), 0);
+	int sendByte = send(tcpSocket, (char*)&message, sizeof(CMessage), 0);
 	if (sendByte <= 0)
 	{
 		cout << "send faild" << endl;
@@ -170,7 +101,7 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 
 	while (1)
 	{
-		int recvByte = recv(clientSocket, receBuff, sizeof(receBuff), 0);
+		int recvByte = recv(tcpSocket, receBuff, sizeof(receBuff), 0);
 
 		if (recvByte >0)
 		{
@@ -185,7 +116,6 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 			if ( end >= 0 && end < 10000)
 			{
 				string temp = s.substr(start + 2, end - start - 4);
-				cout << "temp:" << temp << endl;
 				fileName.push_back(temp);
 				rf = true;
 			}
@@ -202,7 +132,7 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 		else
 		{
 			cout << "receive end" << endl;
-			int reRecvByte = recv(clientSocket, receBuff, sizeof(receBuff), 0);
+			int reRecvByte = recv(tcpSocket, receBuff, sizeof(receBuff), 0);
 			if (reRecvByte <= 0)
 			{
 				cout << "break server" << endl;
@@ -210,21 +140,12 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 			break;
 		}
 	}
-	closesocket(clientSocket);
+	closesocket(tcpSocket);
 	return 0;
 }
 
 DWORD WINAPI Client::SendFile(LPVOID lpParam)
 {
-	int port = 8888;
-	char addr[] = "127.0.0.1";
-
-	//规定对于客户端的目的地址的一些参数
-	struct sockaddr_in serAddr;
-	serAddr.sin_family = AF_INET;
-	serAddr.sin_port = htons(port);
-	serAddr.sin_addr.S_un.S_addr = inet_addr(addr);
-
 	FILE* fp = fopen(fileName[0].c_str(), "rb+");
 	if (fp == NULL)
 	{
@@ -256,12 +177,13 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 			break;
 		}
 		pack.buf[fret] = '\0';
-		if (UDP::clientSendMessage(&pack, fd, &serAddr) == -1)
+
+		if (UDP::clientSendMessage(&pack, udpSocket, &serAddr) == -1)
 		{
 			printf("send error pack id:%d\n", pack.id);
 			continue;
 		}
-		if (UDP::clientRecvMessage(&back, fd) == -1)
+		if (UDP::clientRecvMessage(&back, udpSocket) == -1)
 		{
 			printf("recv error pack id:%d\n", pack.id);
 		}
@@ -278,15 +200,6 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 
 DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 {
-	int port = 8888;
-	char addr[] = "127.0.0.1";
-
-	//规定对于客户端的目的地址的一些参数
-	struct sockaddr_in serAddr;
-	serAddr.sin_family = AF_INET;
-	serAddr.sin_port = htons(port);
-	serAddr.sin_addr.S_un.S_addr = inet_addr(addr);
-
 	cout << "start recv\n";
 
 	printf("waiting for message...\n");
@@ -297,7 +210,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 	RBackInfo back;
 	back.id = 1;
 
-	if (UDP::rclientSendMessage(&back, fd, &serAddr) != -1) // 先发送地址信息
+	if (UDP::rclientSendMessage(&back, udpSocket, &serAddr) != -1) // 先发送地址信息
 	{
 		printf("send addr\n");
 	}
@@ -305,7 +218,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 
 	int ret = 0;
 
-	if ((ret = UDP::rclientRecvMessage(&pack, fd)) == -1)
+	if ((ret = UDP::rclientRecvMessage(&pack, udpSocket)) == -1)
 	{
 		printf("the first package recv error");
 		exit(1);
@@ -322,7 +235,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 	while (1)
 	{
 
-		if (UDP::rclientSendMessage(&back, fd, &serAddr) == -1)
+		if (UDP::rclientSendMessage(&back, udpSocket, &serAddr) == -1)
 		{
 			printf("send error! pack_id:%d\n", back.id);
 			continue;
@@ -336,7 +249,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 
 		memset(pack.buf, 0, sizeof(pack.buf)); // 清空
 
-		if (ret = UDP::rclientRecvMessage(&pack, fd) == -1)
+		if (ret = UDP::rclientRecvMessage(&pack, udpSocket) == -1)
 		{
 			printf("recv error! pack_id:%d\n", back.id + 1);
 		}
@@ -366,7 +279,7 @@ void Client::SendMes(char* message)
 
 	sprintf(sendBuffer, "%s", message);
 
-	int sendByte = send(clientSocket, sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+	int sendByte = send(tcpSocket, sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
 	if (sendByte < 0)
 	{
 		cout << "send faild" << endl;

@@ -1,17 +1,20 @@
-#include "stdafx.h"
-#include "Message.h"
+#include "UDP.h"
+#include "TCP.h"
+
 
 using namespace std;
 
-static SOCKET clientSocket;
+static SOCKET tcpSocket;
+
+static SOCKET udpSocket;
+
+static sockaddr_in serAddr;
 
 static char *timer;
 
 static time_t now;
 
 static vector<string>fileName;
-
-static int fd;
 
 static bool rf;
 
@@ -25,12 +28,18 @@ class Client
 
 	char* mateName; // 用户名
 
+	UDP udp;
+
+	TCP tcp;
+
+	
+
 public:
 
-	Client(CommunicationType type = TCP_COMMUNICATION); // 默认TCP初始化
+	Client(); // 默认TCP初始化
 	~Client();
 
-	bool Init(CommunicationType type); // 初始化客户端
+	void Init(); // 初始化客户端
 
 	void Connect();
 	void ReConnect();

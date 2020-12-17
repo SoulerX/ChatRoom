@@ -22,9 +22,10 @@ unsigned UDP::serverSocketInit()
 	struct sockaddr_in serAddr;
 	memset(&serAddr, 0, sizeof(sockaddr_in)); //每个字节都用0填充
 	serAddr.sin_family = AF_INET; //使用IPv4地址
-	serAddr.sin_port = htons(8888); //端口
+	serAddr.sin_port = htons(20000); //端口
 	serAddr.sin_addr.S_un.S_addr = INADDR_ANY; //自动获取IP地址
-
+	memset(&serAddr.sin_zero, 0, 8);
+	
 	//执行bind函数，将socket与地址Addr绑定
 	if (bind(serSocket, (struct sockaddr*) & serAddr, sizeof(serAddr)) == SOCKET_ERROR)
 	{
