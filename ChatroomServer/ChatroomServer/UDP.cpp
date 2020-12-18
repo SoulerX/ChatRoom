@@ -1,6 +1,6 @@
 #include "UDP.h"
 
-unsigned UDP::serverSocketInit()
+unsigned UDP::udpSocketInit()
 {
 	//Ö´ÐÐWSAStarupº¯Êý
 	WSADATA wsaData;

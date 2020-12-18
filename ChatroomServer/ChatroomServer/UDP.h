@@ -5,7 +5,8 @@
 typedef struct PackInfo
 {
 	int id;
-	char buf[BUFSIZE];
+	bool fin;
+	char buf[2*BUFSIZE];
 }PackInfo;
 
 typedef struct BackInfo
@@ -17,7 +18,8 @@ typedef struct BackInfo
 typedef struct RPackInfo
 {
 	int id;
-	char buf[BUFSIZE];
+	bool fin;
+	char buf[2*BUFSIZE];
 }RPackInfo;
 
 typedef struct RBackInfo
@@ -30,7 +32,7 @@ typedef struct RBackInfo
 class UDP
 {
 public:
-	unsigned serverSocketInit();
+	unsigned udpSocketInit();
 
 	static int serverRecvMessage(PackInfo* pack, int serSocket, struct sockaddr_in* p_remoteAddr);
 	static int serverSendMessage(BackInfo* back, int serSocket, struct sockaddr_in* p_remoteAddr);

@@ -18,6 +18,9 @@ SOCKET UDP::udpSocketInit()
 		return 0;
 	}
 
+	char sockbuflen[4096];
+	setsockopt(cliSocket, SOL_SOCKET, SO_SNDBUF, (char*)&sockbuflen, sizeof(sockbuflen));
+
 	return cliSocket;
 }
 
@@ -52,7 +55,7 @@ int UDP::clientSendMessage(PackInfo* pack, int cliSocket, struct sockaddr_in* p_
 		return -1;
 	}
 	printf("send %d bytes", ret);
-	printf(" pack.buf:" ,strlen(pack->buf));
+	printf(" pack.buf:%d" ,strlen(pack->buf));
 
 	return ret;
 }

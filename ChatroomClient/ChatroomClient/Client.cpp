@@ -146,22 +146,26 @@ DWORD WINAPI Client::receThread(LPVOID lpParam)
 
 DWORD WINAPI Client::SendFile(LPVOID lpParam)
 {
-	FILE* fp = fopen(fileName[0].c_str(), "rb+");
+	FILE* fp = fopen(fileName.back().c_str(), "rb+");
 	if (fp == NULL)
 	{
 		printf("file open error");
 		exit(1);
 	}
 
+	fseek(fp, 0, SEEK_END);
+	long end = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	PackInfo pack;
 	BackInfo back;
 
 	int id = 1;
 
 	while (1)
 	{
-		rewind(fp);
-		PackInfo pack;
 		pack.id = id;
+		pack.fin = false;
 
 		if (fseek(fp, (pack.id - 1)*(BUFSIZE - 1), SEEK_SET) != 0)
 		{
@@ -170,23 +174,33 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 			exit(1);
 		}
 
-		int fret = fread(pack.buf, 1, BUFSIZE - 1, fp);
-		if (fret == 0)
+		int res = fread(pack.buf, 1, BUFSIZE - 1, fp);
+		pack.buf[res] = '\0';
+		if (res == 0)
 		{
-			printf("send finish\n");
+			pack.fin = true;
+			char temp[50];
+			strcpy(pack.buf, _itoa(strlen(pack.buf), temp, 50));
+
+			while (UDP::clientSendMessage(&pack, udpSocket, &serAddr) == -1)
+			{
+				cout << "send pack id:" << id << " faild\n";
+			}	
+			cout << "send break\n";
 			break;
 		}
-		pack.buf[fret] = '\0';
 
 		if (UDP::clientSendMessage(&pack, udpSocket, &serAddr) == -1)
 		{
-			printf("send error pack id:%d\n", pack.id);
+			cout << "send pack id:" << id << " faild\n";
 			continue;
 		}
+
 		if (UDP::clientRecvMessage(&back, udpSocket) == -1)
 		{
-			printf("recv error pack id:%d\n", pack.id);
+			cout << "recv back id:" << id << " faild\n";
 		}
+
 		if (pack.id == back.id)
 		{
 			printf("\nsuccess pack id:%d\n", pack.id);
@@ -194,6 +208,7 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 		}
 		memset(pack.buf, 0, BUFSIZE);
 	}
+
 	fclose(fp);
 	return 0;
 }
@@ -204,7 +219,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 
 	printf("waiting for message...\n");
 
-	RPackInfo pack = { 0, 0, { 0 } };
+	RPackInfo pack;
 	pack.id = 0;
 
 	RBackInfo back;
@@ -229,7 +244,9 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 		printf("success recv pack id:%d\n", pack.id);
 	}
 
-	FILE* fp = fopen(fileName[0].c_str(), "wb+");
+	FILE* fp = fopen(fileName.back().c_str(), "wb+");
+	cout << "name:" << fileName.back().c_str() << endl;
+
 	fwrite(pack.buf, 1, BUFSIZE - 1, fp);
 
 	while (1)
@@ -241,7 +258,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 			continue;
 		}
 
-		if (strlen(pack.buf) < BUFSIZE - 1) //长度不足 BUFSIZE - 1
+		if (pack.fin) //长度不足 BUFSIZE - 1
 		{
 			printf("receive finish\n");
 			break;

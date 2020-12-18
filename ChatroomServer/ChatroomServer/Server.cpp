@@ -5,38 +5,15 @@ using namespace std;
 
 Server::Server(CommunicationType type)
 {
-	// 版本检查
-	WORD require;
-	require = MAKEWORD(2, 2);
-
-	if (WSAStartup(require, &wsaData) != 0)//成功加载返回0；
-	{
-		cout << "loading winsock faild" << endl;
-		return;
-	}
-
-	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
-	{
-		cout << "request version faild" << endl;
-		return;
-	}
-
-	cout << "request version successed" << endl;
-
-	if (Init(type))
-	{
-		cout << "init finished, waiting for connect......\n\n\n" << endl;
-
-		cout << "\t\t\t\t ChatRoom 多人聊天程序 \n";
-		cout << "\t\t\t *************【Server】************* \n";
-		(void)time(&now);
-		timer = ctime(&now);
-		cout << "\t\t\t\t" << timer << endl;
-		cout << "-----------------------------------------------------------------------------------------------" << endl;
-	}
-	else{
-		cout << "init faild" << endl;
-	}
+	Init();
+	
+	cout << "init finished, waiting for connect......\n\n\n" << endl;
+	cout << "\t\t\t\t ChatRoom 多人聊天程序 \n";
+	cout << "\t\t\t *************【Server】************* \n";
+	(void)time(&now);
+	timer = ctime(&now);
+	cout << "\t\t\t\t" << timer << endl;
+	cout << "-----------------------------------------------------------------------------------------------" << endl;
 }
 
 Server::~Server()
@@ -46,58 +23,13 @@ Server::~Server()
 
 
 // SERVER
-bool Server::Init(CommunicationType type) // 初始化服务器
+void Server::Init() // 初始化服务器
 {
 	UDP udp;
+	udpSocket = udp.udpSocketInit();
 
-	fd = udp.serverSocketInit();
-
-	if (TCP_COMMUNICATION == type)
-	{
-		// 创建SOCKET
-		severSocket = socket(AF_INET, SOCK_STREAM, 0);
-		if (severSocket == -1)
-		{
-			cout << "create socket faild" << endl;
-			return false;
-		}
-		cout << "create socket successed" << endl;
-
-		// 配置协议
-		sockaddr_in addr;
-		addr.sin_family = AF_INET;
-		addr.sin_addr.S_un.S_addr = INADDR_ANY;
-		//addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
-		addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.87");
-		addr.sin_port = htons(25000);
-
-		int result; // 返回值
-
-		// 绑定
-		result = bind(severSocket, (sockaddr*)&addr, sizeof(addr));
-		if (result == -1)
-		{
-			cout << "bind socket faild" << endl;
-			return false;
-		}
-		cout << "bind socket successed" << endl;
-
-		// 监听
-		result = listen(severSocket, 10);
-		if (result == -1)
-		{
-			cout << "listen faild" << endl;
-			return false;
-		}
-		cout << "listen successed" << endl;
-
-		return true;
-	}
-	else
-	{
-		// TODO: udp
-		return false;
-	}
+	TCP tcp;
+	tcpSocket = tcp.tcpSocketInit();
 }
 
 void Server::Start() // 开启服务器
@@ -110,7 +42,7 @@ void Server::Start() // 开启服务器
 			continue;
 		}
 
-		clientSocket[count++] = accept(severSocket, NULL, NULL); // 添加socket
+		clientSocket[count++] = accept(tcpSocket, NULL, NULL); // 添加tcp socket
 		cout << "Client_" << count << " has been connected server" << endl;
 	
 		ClientParams newClient;
@@ -186,7 +118,7 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 					}
 				}
 			}
-			else if (strcmp(recvMes.messageBuffer, "accept") == 0 && ac) // 文件转发
+			else if (strcmp(recvMes.messageBuffer, "accept") == 0) // 文件转发
 			{
 				if (1)
 				{
@@ -235,24 +167,22 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 {
 	struct sockaddr_in* p_remoteAddr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
-	PackInfo pack = { 0, 0, { 0 } };
+
+	PackInfo pack;
+	pack.id = 0;
+
 	BackInfo back;
-
-
+	back.id = 1;
+	
 	printf("waiting for message...\n");
 	int ret = 0;
 
-	back.id = 1;
-	pack.id = 0;
-	if ((ret = UDP::serverRecvMessage(&pack, fd, p_remoteAddr)) == -1)
+	cout << "start recv\n";
+
+	if ((ret = UDP::serverRecvMessage(&pack, udpSocket, p_remoteAddr)) == -1)
 	{
 		printf("the first package recv error");
 		exit(1);
-	}
-	else
-	{
-		printf(" %d-%d\n", pack.id,strlen(pack.buf));
-		printf("success recv pack id:%d\n", pack.id);	
 	}
 
 	FILE* fp = fopen(globalClient.sendFile, "wb+");
@@ -260,28 +190,26 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 
 	while (1)
 	{
-
-		if (UDP::serverSendMessage(&back, fd, p_remoteAddr) == -1)
+		if (UDP::serverSendMessage(&back, udpSocket, p_remoteAddr) == -1)
 		{
 			printf("send error! pack_id:%d\n", back.id);
 			continue;
 		}
 
-		if (strlen(pack.buf) < BUFSIZE - 1)
+		if (pack.fin)
 		{
-			cout << "pack.buf:" << strlen(pack.buf) << endl;
-			printf("receive finish\n");
 			break;
 		}
+
 		memset(pack.buf, 0, sizeof(pack.buf));
-		if (ret = UDP::serverRecvMessage(&pack, fd, p_remoteAddr) == -1)
+
+		if (ret = UDP::serverRecvMessage(&pack, udpSocket, p_remoteAddr) == -1)
 		{
 			printf("recv error! pack_id:%d\n", back.id + 1);
 		}
 		else
 		{
-			printf(" %d\n", pack.id);
-			//pack.id++;
+			printf("%d", pack.id);
 		}
 
 		if (pack.id == (back.id + 1))
@@ -295,7 +223,11 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 			printf("failed recv pack id[%d]\n", pack.id + 1);
 		}
 	}
+
+	cout << "end recv\n";
+
 	fclose(fp);
+
 	return 0;
 }
 
@@ -303,30 +235,33 @@ DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
 {
 	cout << "start send\n";
 	struct sockaddr_in* p_remoteAddr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
-
+	
+	RBackInfo back;
+	RPackInfo pack;
+	int id = 1;
+	
 	FILE* fp = fopen(globalClient.sendFile, "rb+");
 	if (fp == NULL)
 	{
 		printf("file open error");
 		exit(1);
 	}
+	else
+	{
+		fseek(fp, 0, SEEK_SET);
+		printf(" %d\n", id);
+		printf("success recv pack id:%d\n", id);
+	}
 
-	RBackInfo back;
-	RPackInfo pack;
-	int id = 1;
-
-	if (UDP::rserverRecvMessage(&back, fd, p_remoteAddr) != -1) // 获取对方地址
+	if (UDP::rserverRecvMessage(&back, udpSocket, p_remoteAddr) != -1) // 获取对方地址
 	{
 		printf("recv client_addr\n");
 	}
 
 	while (1)
 	{
-		//使文件fp的位置指针指向文件开始
-		rewind(fp);
-		
 		pack.id = id;
-		memset(pack.buf, 0, sizeof(pack.buf)); //清空
+		pack.fin = false;
 
 
 		//重定位流上的文件指针 成功返回0
@@ -349,22 +284,28 @@ DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
 		//count    是读取次数
 		//stream   是要读取的文件的指针
 		int fret = fread(pack.buf, 1, BUFSIZE - 1, fp);
+		pack.buf[fret] = '\0'; // BUFSIZE 结尾
 		if (fret == 0)
 		{
+			pack.fin = true;
+			char temp[50];
+			strcpy(pack.buf, _itoa(strlen(pack.buf), temp, 50));
+
+			while (UDP::rserverSendMessage(&pack, udpSocket, p_remoteAddr) == -1)
+			{
+				cout << "send pack id:" << id << " faild\n";
+			}
+
 			printf("send finish\n");
 			break;
 		}
 
-		pack.buf[fret] = '\0'; // BUFSIZE 结尾
-
-		//cout << "buf:" << pack.buf << endl;
-
-		if (UDP::rserverSendMessage(&pack, fd, p_remoteAddr) == -1)
+		if (UDP::rserverSendMessage(&pack, udpSocket, p_remoteAddr) == -1)
 		{
 			printf("send error pack id:%d\n", pack.id);
 			continue;
 		}
-		if (UDP::rserverRecvMessage(&back, fd, p_remoteAddr) == -1)
+		if (UDP::rserverRecvMessage(&back, udpSocket, p_remoteAddr) == -1)
 		{
 			printf("recv error pack id:%d\n", pack.id);
 		}
@@ -636,7 +577,7 @@ void Server::ReStart() // 重启服务器
 
 void Server::Close() // 关闭服务器
 {
-	closesocket(severSocket);
+	closesocket(tcpSocket);
 	WSACleanup();
 }
 

@@ -17,7 +17,9 @@ static char *timer; // 时间
 
 static time_t now; // 表
 
-static int fd; // udp socket
+static SOCKET udpSocket; // udp socket
+
+static SOCKET tcpSocket; // tcp socket
 
 typedef struct ClientInfo{ // 文件发送参数
 	unsigned number;
@@ -44,17 +46,13 @@ typedef enum State { // 登录状态
 
 class Server
 {
-	WSADATA wsaData;
-	
-	SOCKET severSocket; // 服务器socket
-
 	unsigned count = 0; // 分配用户编号
 
 public:
 	Server(CommunicationType type = TCP_COMMUNICATION); // 默认TCP初始化
 	~Server();
 
-	bool Init(CommunicationType type); // 初始化服务器
+	void Init(); // 初始化服务器
 	void Start(); // 开启服务器
 	void ReStart(); // 重启服务器
 	void Close(); // 关闭服务器
