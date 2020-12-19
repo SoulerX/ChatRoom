@@ -1,5 +1,5 @@
 
-#define BUFSIZE 512
+#define BUFSIZE 1024
 
 enum CommunicationType{
 	TCP_COMMUNICATION = 1, // TCP
@@ -46,7 +46,7 @@ typedef struct PackInfo
 {
 	int id;
 	bool fin;
-	char buf[2*BUFSIZE];
+	char buf[60 * BUFSIZE];
 }PackInfo;
 
 typedef struct BackInfo
@@ -59,7 +59,7 @@ typedef struct RPackInfo
 {
 	int id;
 	bool fin;
-	char buf[2*BUFSIZE];
+	char buf[60*BUFSIZE];
 }RPackInfo;
 
 typedef struct RBackInfo

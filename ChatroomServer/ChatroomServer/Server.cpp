@@ -1,6 +1,7 @@
 #include "Server.h"
 #include <iostream>
 
+
 using namespace std;
 
 Server::Server(CommunicationType type)
@@ -186,8 +187,12 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 	}
 
 	FILE* fp = fopen(globalClient.sendFile, "wb+");
-	fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+	fwrite(pack.buf, 1,  50*BUFSIZE - 1, fp);
+	
+	long long size;
 
+	clock_t start, end;
+	start = clock();
 	while (1)
 	{
 		if (UDP::serverSendMessage(&back, udpSocket, p_remoteAddr) == -1)
@@ -198,6 +203,7 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 
 		if (pack.fin)
 		{
+			size = _atoi64(pack.buf);
 			break;
 		}
 
@@ -215,7 +221,7 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 		if (pack.id == (back.id + 1))
 		{
 			back.id++;
-			fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+			fwrite(pack.buf, 1, 50*BUFSIZE - 1, fp);
 			printf("success recv pack id:%d\n", pack.id);
 		}
 		else
@@ -223,9 +229,11 @@ DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
 			printf("failed recv pack id[%d]\n", pack.id + 1);
 		}
 	}
-
+	end = clock();
 	cout << "end recv\n";
+	double time = (double)(end - start) / CLOCKS_PER_SEC;
 
+	cout << "File size: " << size << " Total time: " << time << "s Transmission speed: " << size / time << "kb/s\n";
 	fclose(fp);
 
 	return 0;
@@ -272,7 +280,7 @@ DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
 		//SEEK_CUR： 当前位置
 		//SEEK_END： 文件结尾
 		//其中SEEK_SET, SEEK_CUR和SEEK_END和依次为0，1和2.
-		if (fseek(fp, (pack.id - 1)*(BUFSIZE - 1), SEEK_SET) != 0)
+		if (fseek(fp, (pack.id - 1)*( 50*BUFSIZE - 1), SEEK_SET) != 0)
 		{
 			printf("fseek error");
 			fclose(fp);
@@ -283,8 +291,8 @@ DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
 		//size     是每次读取的字节数
 		//count    是读取次数
 		//stream   是要读取的文件的指针
-		int fret = fread(pack.buf, 1, BUFSIZE - 1, fp);
-		pack.buf[fret] = '\0'; // BUFSIZE 结尾
+		int fret = fread(pack.buf, 1, 50*BUFSIZE - 1, fp);
+		pack.buf[fret] = '\0'; // 20*BUFSIZE 结尾
 		if (fret == 0)
 		{
 			pack.fin = true;
@@ -314,7 +322,7 @@ DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
 			printf("\nsuccess pack id:%d\n", pack.id);
 			id++;
 		}
-		memset(pack.buf, 0, BUFSIZE);
+		memset(pack.buf, 0, 50*BUFSIZE);
 	}
 	fclose(fp);
 

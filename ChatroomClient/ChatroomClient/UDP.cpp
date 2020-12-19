@@ -18,7 +18,7 @@ SOCKET UDP::udpSocketInit()
 		return 0;
 	}
 
-	char sockbuflen[4096];
+	char sockbuflen[64*BUFSIZE];
 	setsockopt(cliSocket, SOL_SOCKET, SO_SNDBUF, (char*)&sockbuflen, sizeof(sockbuflen));
 
 	return cliSocket;
@@ -27,7 +27,7 @@ SOCKET UDP::udpSocketInit()
 sockaddr_in UDP::udpAddrConfig()
 {
 	int port = 20000;
-	char addr[] = "192.168.1.87";
+	char addr[] = "192.168.111.1";
 
 	sockaddr_in serAddr;
 

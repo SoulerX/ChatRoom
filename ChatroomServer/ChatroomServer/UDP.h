@@ -1,12 +1,12 @@
 #include "stdafx.h"
 
-#define	BUFSIZE 512
+#define	BUFSIZE 1024
 
 typedef struct PackInfo
 {
 	int id;
 	bool fin;
-	char buf[2*BUFSIZE];
+	char buf[60*BUFSIZE];
 }PackInfo;
 
 typedef struct BackInfo
@@ -19,7 +19,7 @@ typedef struct RPackInfo
 {
 	int id;
 	bool fin;
-	char buf[2*BUFSIZE];
+	char buf[60*BUFSIZE];
 }RPackInfo;
 
 typedef struct RBackInfo

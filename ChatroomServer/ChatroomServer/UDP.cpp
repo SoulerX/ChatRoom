@@ -23,7 +23,9 @@ unsigned UDP::udpSocketInit()
 	memset(&serAddr, 0, sizeof(sockaddr_in)); //每个字节都用0填充
 	serAddr.sin_family = AF_INET; //使用IPv4地址
 	serAddr.sin_port = htons(20000); //端口
-	serAddr.sin_addr.S_un.S_addr = INADDR_ANY; //自动获取IP地址
+	//serAddr.sin_addr.S_un.S_addr = INADDR_ANY; //自动获取IP地址
+	serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
+
 	memset(&serAddr.sin_zero, 0, 8);
 	
 	//执行bind函数，将socket与地址Addr绑定
@@ -33,6 +35,10 @@ unsigned UDP::udpSocketInit()
 		closesocket(serSocket);
 		return 0;
 	}
+
+	char sockbuflen[64 * BUFSIZE];
+	setsockopt(serSocket, SOL_SOCKET, SO_SNDBUF, (char*)&sockbuflen, sizeof(sockbuflen));
+
 	return serSocket;
 }
 

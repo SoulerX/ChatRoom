@@ -4,34 +4,27 @@
 
 using namespace std;
 
-static SOCKET tcpSocket;
+static SOCKET tcpSocket; // tcp
 
-static SOCKET udpSocket;
+static SOCKET udpSocket; // udp
 
-static sockaddr_in serAddr;
+static sockaddr_in serAddr; // udp addr
 
-static char *timer;
+static char *timer; // 计时器
 
-static time_t now;
+static time_t now; // 计时
 
-static vector<string>fileName;
+static vector<string>fileName; // 文件名
 
-static bool rf;
+static bool rf; // 收件开关
 
 class Client
 {
 	WSADATA wsaData;
 
-	unsigned roomId; // 房间 id
-
-	unsigned userId; // 用户 id
-
-	char* mateName; // 用户名
-
 	UDP udp;
 
 	TCP tcp;
-
 	
 
 public:

@@ -38,7 +38,7 @@ void Client::Connect()
 	}
 
 	char str[1024];
-
+	
 	while (1)
 	{
 		gets_s(str); // 获取输入
@@ -152,9 +152,9 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 		printf("file open error");
 		exit(1);
 	}
-
+	long long size = _filelength(_fileno(fp));
 	fseek(fp, 0, SEEK_END);
-	long end = ftell(fp);
+	long long end = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
 	PackInfo pack;
@@ -167,20 +167,20 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 		pack.id = id;
 		pack.fin = false;
 
-		if (fseek(fp, (pack.id - 1)*(BUFSIZE - 1), SEEK_SET) != 0)
+		if (fseek(fp, (pack.id - 1)*(50*BUFSIZE - 1), SEEK_SET) != 0)
 		{
 			printf("fseek error");
 			fclose(fp);
 			exit(1);
 		}
 
-		int res = fread(pack.buf, 1, BUFSIZE - 1, fp);
+		int res = fread(pack.buf, 1, 50*BUFSIZE - 1, fp);
 		pack.buf[res] = '\0';
 		if (res == 0)
 		{
 			pack.fin = true;
 			char temp[50];
-			strcpy(pack.buf, _itoa(strlen(pack.buf), temp, 50));
+			strcpy(pack.buf, _ltoa(size, temp, 50));
 
 			while (UDP::clientSendMessage(&pack, udpSocket, &serAddr) == -1)
 			{
@@ -206,7 +206,8 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 			printf("\nsuccess pack id:%d\n", pack.id);
 			id++;
 		}
-		memset(pack.buf, 0, BUFSIZE);
+		memset(pack.buf, 0, 50*BUFSIZE);
+		//Sleep(3);
 	}
 
 	fclose(fp);
@@ -247,7 +248,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 	FILE* fp = fopen(fileName.back().c_str(), "wb+");
 	cout << "name:" << fileName.back().c_str() << endl;
 
-	fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+	fwrite(pack.buf, 1, 30*BUFSIZE - 1, fp);
 
 	while (1)
 	{
@@ -258,7 +259,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 			continue;
 		}
 
-		if (pack.fin) //长度不足 BUFSIZE - 1
+		if (pack.fin) //长度不足 30*BUFSIZE - 1
 		{
 			printf("receive finish\n");
 			break;
@@ -278,7 +279,7 @@ DWORD WINAPI Client::RecvFile(LPVOID lpParams)
 		if (pack.id == (back.id + 1))
 		{
 			back.id++;
-			fwrite(pack.buf, 1, BUFSIZE - 1, fp);
+			fwrite(pack.buf, 1, 50*BUFSIZE - 1, fp);
 			printf("success recv pack id:%d\n", pack.id);
 		}
 		else

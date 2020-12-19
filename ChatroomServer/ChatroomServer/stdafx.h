@@ -4,7 +4,7 @@
 #include <windows.h>
 #include <process.h>
 #include <time.h>
-
+#include <io.h>
 
 #include <iostream>
 #include <string>

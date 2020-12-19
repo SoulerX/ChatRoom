@@ -31,8 +31,8 @@ SOCKET TCP::tcpSocketInit()
 	sockaddr_in addr;
 	addr.sin_family = AF_INET;
 	addr.sin_addr.S_un.S_addr = INADDR_ANY;
-	//addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
-	addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.87");
+	addr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
+	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.87");
 	addr.sin_port = htons(25000);
 
 	int result; // ·µ»ØÖµ
