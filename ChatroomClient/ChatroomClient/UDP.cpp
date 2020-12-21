@@ -27,8 +27,8 @@ SOCKET UDP::udpSocketInit()
 sockaddr_in UDP::udpAddrConfig()
 {
 	int port = 20000;
-	char addr[] = "192.168.111.1";
-
+	//char addr[] = "192.168.111.1";
+	char addr[] = "192.168.1.11";
 	sockaddr_in serAddr;
 
 	//规定对于客户端的目的地址的一些参数

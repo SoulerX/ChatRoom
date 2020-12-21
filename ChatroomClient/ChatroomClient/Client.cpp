@@ -186,7 +186,7 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 			{
 				cout << "send pack id:" << id << " faild\n";
 			}	
-			cout << "send break\n";
+			cout << "\nsend break\n";
 			break;
 		}
 

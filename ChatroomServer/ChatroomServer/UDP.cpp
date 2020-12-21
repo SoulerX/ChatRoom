@@ -25,7 +25,7 @@ unsigned UDP::udpSocketInit()
 	serAddr.sin_port = htons(20000); //端口
 	//serAddr.sin_addr.S_un.S_addr = INADDR_ANY; //自动获取IP地址
 	serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
-
+	serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.1.11");
 	memset(&serAddr.sin_zero, 0, 8);
 	
 	//执行bind函数，将socket与地址Addr绑定

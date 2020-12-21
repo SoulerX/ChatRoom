@@ -24,6 +24,9 @@
     <ClCompile Include="UDP.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="TCP.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Message.h">
@@ -36,6 +39,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="UDP.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="TCP.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
