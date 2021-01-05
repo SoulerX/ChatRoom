@@ -3,6 +3,10 @@
 
 int main(void)
 {
+	//system("mode con lines=60 cols=54 ");
+
+	system("color 17");
+
 	Server myServer;
 
 	myServer.Start();

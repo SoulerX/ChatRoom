@@ -24,8 +24,9 @@ unsigned UDP::udpSocketInit()
 	serAddr.sin_family = AF_INET; //使用IPv4地址
 	serAddr.sin_port = htons(20000); //端口
 	//serAddr.sin_addr.S_un.S_addr = INADDR_ANY; //自动获取IP地址
-	serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
+	//serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.111.3");
 	serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.1.11");
+	//serAddr.sin_addr.S_un.S_addr = inet_addr("192.168.1.160");
 	memset(&serAddr.sin_zero, 0, 8);
 	
 	//执行bind函数，将socket与地址Addr绑定
@@ -82,6 +83,30 @@ int UDP::rserverRecvMessage(RBackInfo* back, int serSocket, struct sockaddr_in* 
 int UDP::rserverSendMessage(RPackInfo* pack, int serSocket, struct sockaddr_in* p_remoteAddr)
 {
 	int ret = sendto(serSocket, (char*)pack, sizeof(RPackInfo), 0, (const sockaddr*)p_remoteAddr, sizeof(struct sockaddr_in));
+	if (ret < 0)
+	{
+		printf("send to error\n");
+		return -1;
+	}
+	return ret;
+}
+
+int UDP::recvMessage(char mes[1024], int serSocket, struct sockaddr_in* p_remoteAddr)
+{
+	int nAddrLen = sizeof(*p_remoteAddr);
+	int ret = recvfrom(serSocket, mes, sizeof(mes), 0, (struct sockaddr*)  p_remoteAddr, &nAddrLen);
+
+	if (ret < 0)
+	{
+		return -1;
+	}
+	printf("recv %d bytes", ret);
+	return ret;
+}
+
+int UDP::sendMessage(char mes[1024], int serSocket, struct sockaddr_in* p_remoteAddr)
+{
+	int ret = sendto(serSocket, mes, sizeof(mes), 0, (const sockaddr*)p_remoteAddr, sizeof(struct sockaddr_in));
 	if (ret < 0)
 	{
 		printf("send to error\n");

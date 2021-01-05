@@ -21,6 +21,26 @@ static SOCKET udpSocket; // udp socket
 
 static SOCKET tcpSocket; // tcp socket
 
+static FILE* fp;
+
+static int totalsize;
+
+static int record;
+
+static clock_t starttime;
+
+static clock_t endtime;
+
+typedef struct FileInfo{
+	char fileName[128];
+	int fileSize;
+}FileInfo;
+
+static FileInfo *fileInfo;
+
+
+
+
 typedef struct ClientInfo{ // 文件发送参数
 	unsigned number;
 	char sendFile[1024];
@@ -70,14 +90,19 @@ public:
 	static void delServerMate(ClientParams params); // 从服务器成员列表移除
 	static void delRoomMate(ClientParams params); // 从房间成员列表移除
 
+	static DWORD WINAPI RecvFile(LPVOID lpParams);  //线程函数
 	static DWORD WINAPI RecvFileThread(LPVOID lpParams);  //线程函数
 	static DWORD WINAPI SendFileThread(LPVOID lpParams);  //线程函数
-	static DWORD WINAPI StartThread(LPVOID lpParams);  //线程函数
+	static DWORD WINAPI StartTcpThread(LPVOID lpParams);  //线程函数
 	static void TxtTranspond(ClientParams *clientInfo, CMessage* message); // 转发函数
 	static void SendMes(char* message, unsigned number); // 指令消息
+
+	static void transfer(CMessage message, ClientParams params);
 
 	// tool
 	static bool IsDigital(char str[]); // 识别数字
 	static int FuzzyMatch(const char* str); // 模糊匹配
-	static CMessage Server::TypeRecognition(string s); // 消息识别
+	static CMessage TypeRecognition(string s); // 消息识别
+	static MessageType FileRecognition(string s); // 文件识别
+	static FileInfo* FileInfomation(CMessage message);
 };

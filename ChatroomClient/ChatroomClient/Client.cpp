@@ -16,8 +16,6 @@ Client::~Client()
 {
 	closesocket(tcpSocket);
 	WSACleanup();
-
-	Close();
 }
 
 void Client::Init() // 初始化客户端
@@ -56,27 +54,24 @@ void Client::Connect()
 	}
 }
 
-void Client::ReConnect()
-{
-
-}
-
-void Client::Close()
-{
-
-}
-
 DWORD WINAPI Client::sendThread(LPVOID lpParam)
 {
 	CMessage* temp = (CMessage*)lpParam;
 
+	// 防止不同主机地址指针出错
 	CMessage message;
-
+	memset(message.messageBuffer, '\0', 64 * BUFSIZE);
 	message.mType = temp->mType;
 	message.pType = temp->pType;
 	message.mesLength = temp->mesLength;
 	strcpy(message.messageBuffer, temp->messageBuffer);
 	message.sendObjId = temp->sendObjId;
+
+	if (message.mType == FILE_MESSAGE) // 发送文件 截断
+	{
+		CreateThread(NULL, 0, &SendFile, 0, 0, NULL);
+		return 0;
+	}
 
 	int sendByte = send(tcpSocket, (char*)&message, sizeof(CMessage), 0);
 	if (sendByte <= 0)
@@ -85,10 +80,10 @@ DWORD WINAPI Client::sendThread(LPVOID lpParam)
 	}
 	else
 	{
-		if ((strcmp(message.messageBuffer, "accept") == 0) && (rf == true))
+		if ((strcmp(message.messageBuffer, "accept") == 0) && (rf == false))
 		{
-			rf = false;
-			CreateThread(NULL, 0, &RecvFile, 0, 0, NULL);
+			rf = true;
+			//CreateThread(NULL, 0, &RecvFile, 0, 0, NULL);
 		}
 	}
 	
@@ -97,46 +92,84 @@ DWORD WINAPI Client::sendThread(LPVOID lpParam)
 
 DWORD WINAPI Client::receThread(LPVOID lpParam)
 {
-	char receBuff[1024];
+	CMessage receBuff;
 
 	while (1)
 	{
-		int recvByte = recv(tcpSocket, receBuff, sizeof(receBuff), 0);
+		memset(receBuff.messageBuffer, '\0', BUFSIZE);
 
+		int recvByte = recv(tcpSocket, (char*)&receBuff, sizeof(CMessage), 0);
 		if (recvByte >0)
 		{
-			cout << receBuff << endl;
-
-			string s = receBuff;
-
-			int start = s.find_last_of(":");
-
-			int end = s.find("accept or refuse?");
-
-			if ( end >= 0 && end < 10000)
+			if (receBuff.mType == TXT_MESSAGE)
 			{
-				string temp = s.substr(start + 2, end - start - 4);
-				fileName.push_back(temp);
-				rf = true;
+				cout << receBuff.messageBuffer << endl;
+
+				
+
+				string s = receBuff.messageBuffer;
+
+				int start = s.find_last_of("\\");
+
+				int end = s.find(",");
+
+				if (end >= 0 && end < 10000 && start > 0 && start < 10000 )
+				{
+					string temp = s.substr(start + 1, end - start - 1);
+					fileName.push_back(temp);
+					cout << "filename:" << fileName.back() << endl;
+					rf = false;
+				}
 			}
-
-
-			int start2 = s.find("accept1");
-
-			if (start2>=0 && start2 < 10000)
+			else if (receBuff.mType == FILE_MESSAGE)
 			{
-				CreateThread(NULL, 0, &SendFile, lpParam, 0, NULL);
+				if (rf)
+				{
+					cout << "start recv\n";
+					cout << "waiting for message...\n";
+
+					fp = fopen(fileName.back().c_str(), "wb+");
+					cout << "name:" << fileName.back().c_str() << endl;
+					rf = false;
+					starttime = clock();
+				}
+				
+				int ret = 0;
+
+				ret = fwrite(receBuff.messageBuffer, 1, receBuff.mesLength, fp);
+
+				if (ret > 0)
+				{
+					cout << "recv size " << receBuff.mesLength << endl;
+					totalsize += receBuff.mesLength;
+					cout << ++record << " total size " << totalsize << endl;
+
+					if (ret < 64 * BUFSIZE)
+					{
+						cout << "recv finish" << endl;
+						endtime = clock();
+						double delta = (double)(endtime - starttime) / CLOCKS_PER_SEC;
+						printf("time = %f s  speed = %f mb/s\n", delta, totalsize / delta / 1024 / 1024);
+						
+						totalsize = 0;
+						record = 0;
+
+						fclose(fp);	
+					}
+				}
+				else
+				{
+					cout << "error" << endl;
+				}
 			}
-			
+			else
+			{
+
+			}
 		}
 		else
 		{
-			cout << "receive end" << endl;
-			int reRecvByte = recv(tcpSocket, receBuff, sizeof(receBuff), 0);
-			if (reRecvByte <= 0)
-			{
-				cout << "break server" << endl;
-			}
+			cout << "break server" << endl;
 			break;
 		}
 	}
@@ -149,146 +182,70 @@ DWORD WINAPI Client::SendFile(LPVOID lpParam)
 	FILE* fp = fopen(fileName.back().c_str(), "rb+");
 	if (fp == NULL)
 	{
-		printf("file open error");
+		printf("file open error\n");
 		exit(1);
 	}
-	long long size = _filelength(_fileno(fp));
-	fseek(fp, 0, SEEK_END);
-	long long end = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
+	printf("file open success\n");
 
-	PackInfo pack;
-	BackInfo back;
+	int size = _filelength(_fileno(fp));
+	int rsize = size;
+	cout << "size:" << size << endl;
 
-	int id = 1;
-
-	while (1)
-	{
-		pack.id = id;
-		pack.fin = false;
-
-		if (fseek(fp, (pack.id - 1)*(50*BUFSIZE - 1), SEEK_SET) != 0)
-		{
-			printf("fseek error");
-			fclose(fp);
-			exit(1);
-		}
-
-		int res = fread(pack.buf, 1, 50*BUFSIZE - 1, fp);
-		pack.buf[res] = '\0';
-		if (res == 0)
-		{
-			pack.fin = true;
-			char temp[50];
-			strcpy(pack.buf, _ltoa(size, temp, 50));
-
-			while (UDP::clientSendMessage(&pack, udpSocket, &serAddr) == -1)
-			{
-				cout << "send pack id:" << id << " faild\n";
-			}	
-			cout << "\nsend break\n";
-			break;
-		}
-
-		if (UDP::clientSendMessage(&pack, udpSocket, &serAddr) == -1)
-		{
-			cout << "send pack id:" << id << " faild\n";
-			continue;
-		}
-
-		if (UDP::clientRecvMessage(&back, udpSocket) == -1)
-		{
-			cout << "recv back id:" << id << " faild\n";
-		}
-
-		if (pack.id == back.id)
-		{
-			printf("\nsuccess pack id:%d\n", pack.id);
-			id++;
-		}
-		memset(pack.buf, 0, 50*BUFSIZE);
-		//Sleep(3);
-	}
-
-	fclose(fp);
-	return 0;
-}
-
-DWORD WINAPI Client::RecvFile(LPVOID lpParams)
-{
-	cout << "start recv\n";
-
-	printf("waiting for message...\n");
-
-	RPackInfo pack;
-	pack.id = 0;
-
-	RBackInfo back;
-	back.id = 1;
-
-	if (UDP::rclientSendMessage(&back, udpSocket, &serAddr) != -1) // 先发送地址信息
-	{
-		printf("send addr\n");
-	}
-
+	CMessage message;
+	memset(message.messageBuffer, '\0', 64 * BUFSIZE);
+	message.mType = TXT_MESSAGE;
+	sprintf(message.messageBuffer, "file %s %d", fileName.back().c_str(), size);
+	cout << message.messageBuffer << endl;
 
 	int ret = 0;
-
-	if ((ret = UDP::rclientRecvMessage(&pack, udpSocket)) == -1)
+	if ((ret = send(tcpSocket, (char*)&message, sizeof(CMessage), 0)) > 0)
 	{
-		printf("the first package recv error");
-		exit(1);
-	}
-	else
-	{
-		printf(" %d\n", pack.id);
-		printf("success recv pack id:%d\n", pack.id);
+		cout << "send fileinfo success" << endl;
 	}
 
-	FILE* fp = fopen(fileName.back().c_str(), "wb+");
-	cout << "name:" << fileName.back().c_str() << endl;
+	clock_t start, end;
+	start = clock();
 
-	fwrite(pack.buf, 1, 30*BUFSIZE - 1, fp);
+	int i = 0;
+	while (size > 0) {
+		memset(message.messageBuffer, '\0', 64 * BUFSIZE);
 
-	while (1)
-	{
+		message.mType = FILE_MESSAGE;
 
-		if (UDP::rclientSendMessage(&back, udpSocket, &serAddr) == -1)
+		int temp = (size < 64 * BUFSIZE ? size : 64 * BUFSIZE);
+
+		message.mesLength = temp;
+
+		fread(message.messageBuffer, 1, temp, fp);
+
+		int ret = 0;
+		if ((ret = send(tcpSocket, (char*)&message, sizeof(CMessage), 0)) == -1)
 		{
-			printf("send error! pack_id:%d\n", back.id);
-			continue;
-		}
-
-		if (pack.fin) //长度不足 30*BUFSIZE - 1
-		{
-			printf("receive finish\n");
+			cout << "send error" << endl;
 			break;
 		}
-
-		memset(pack.buf, 0, sizeof(pack.buf)); // 清空
-
-		if (ret = UDP::rclientRecvMessage(&pack, udpSocket) == -1)
-		{
-			printf("recv error! pack_id:%d\n", back.id + 1);
-		}
 		else
 		{
-			printf(" %d\n", pack.id);
+			size -= temp;
+			if (temp < 64 * BUFSIZE)
+			{		
+				cout << "send finish" << endl;
+			}
+			else
+			{
+				cout << ++i << " residue size " << size << endl;
+			}
 		}
-
-		if (pack.id == (back.id + 1))
-		{
-			back.id++;
-			fwrite(pack.buf, 1, 50*BUFSIZE - 1, fp);
-			printf("success recv pack id:%d\n", pack.id);
-		}
-		else
-		{
-			printf("failed recv pack id[%d]\n", pack.id + 1);
-		}
+		//Sleep(10);
 	}
+
+	end = clock();
+
+	double delta = (double)(end - start) / CLOCKS_PER_SEC;
+
+	printf("time = %f s  speed = %f mb/s\n", delta, rsize/delta/1024/1024);
+
 	fclose(fp);
-	return 0;
 }
 
 void Client::SendMes(char* message)
@@ -386,6 +343,7 @@ CMessage Client::TypeRecognition(string s)
 		{
 			fileName.push_back(newStr);
 			message.mType = FILE_MESSAGE;
+
 		}
 	}
 	else

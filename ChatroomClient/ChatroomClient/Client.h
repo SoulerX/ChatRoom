@@ -18,6 +18,16 @@ static vector<string>fileName; // 文件名
 
 static bool rf; // 收件开关
 
+static FILE* fp;
+
+static int totalsize;
+
+static int record;
+
+static clock_t starttime;
+
+static clock_t endtime;
+
 class Client
 {
 	WSADATA wsaData;
@@ -40,10 +50,10 @@ public:
 
 	CMessage TypeRecognition(string s);
 
-	static DWORD WINAPI Client::sendThread(LPVOID lpParam); // 发送
-	static DWORD WINAPI Client::receThread(LPVOID lpParam); // 接收
-	static DWORD WINAPI Client::SendFile(LPVOID lpParam); // 发送文件
-	static DWORD WINAPI Client::RecvFile(LPVOID lpParams);
+	static DWORD WINAPI sendThread(LPVOID lpParam); // 发送
+	static DWORD WINAPI receThread(LPVOID lpParam); // 接收
+	static DWORD WINAPI SendFile(LPVOID lpParam); // 发送文件
+	static DWORD WINAPI RecvFile(LPVOID lpParams);
 	static void SendMes(char* message);
 
 	// tool

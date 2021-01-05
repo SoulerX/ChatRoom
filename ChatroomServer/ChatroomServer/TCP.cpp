@@ -31,10 +31,11 @@ SOCKET TCP::tcpSocketInit()
 	sockaddr_in addr;
 	addr.sin_family = AF_INET;
 	addr.sin_addr.S_un.S_addr = INADDR_ANY;
-	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
-	addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.11");
+	addr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
+	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.11");
+	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.160");
 	addr.sin_port = htons(25000);
-
+	cout << "ip: " << "192.168.1.11" << "  port:" << "25000" << endl;
 	int result; // ·µ»ØÖµ
 
 	// °ó¶¨

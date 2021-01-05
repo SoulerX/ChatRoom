@@ -1,7 +1,6 @@
 #include "Server.h"
 #include <iostream>
 
-
 using namespace std;
 
 Server::Server(CommunicationType type)
@@ -9,12 +8,13 @@ Server::Server(CommunicationType type)
 	Init();
 	
 	cout << "init finished, waiting for connect......\n\n\n" << endl;
-	cout << "\t\t\t\t ChatRoom 多人聊天程序 \n";
-	cout << "\t\t\t *************【Server】************* \n";
+	cout << "\t\t ChatRoom 多人聊天程序 \n";
+	cout << "\t *************【Server】************* \n";
+
 	(void)time(&now);
 	timer = ctime(&now);
-	cout << "\t\t\t\t" << timer << endl;
-	cout << "-----------------------------------------------------------------------------------------------" << endl;
+	cout << "\t\t" << timer << endl;
+	cout << "------------------------------------------------------" << endl;
 }
 
 Server::~Server()
@@ -51,12 +51,27 @@ void Server::Start() // 开启服务器
 
 		mateIds.push_back(count); // 将成员id添置至id列表
 
-		hThread[count - 1] = CreateThread(NULL, 0, StartThread, &newClient, 0, NULL); // 创建线程
+		char num[10];
+
+		_itoa(mateIds.back(), num, 10);
+
+		char idInfo[30] = "Your id: ";
+
+		strcat(idInfo, num);
+
+		SendMes(idInfo, count);
+
+		strcpy(idInfo, "please input room id: ");
+
+		SendMes(idInfo, count);
+
+		hThread[count - 1] = CreateThread(NULL, 0, StartTcpThread, &newClient, 0, NULL); // 创建线程
+		
 		Sleep(100);	
 	}
 }
 
-DWORD WINAPI Server::StartThread(LPVOID lpParams)
+DWORD WINAPI Server::StartTcpThread(LPVOID lpParams)
 {
 	ClientParams *temp = (ClientParams*)lpParams;
 
@@ -75,256 +90,220 @@ DWORD WINAPI Server::StartThread(LPVOID lpParams)
 
 	CMessage recvMes;
 
-	char fileName[128];
-
-	bool ac = true;
-
 	while (1)
 	{
+		memset(recvMes.messageBuffer, '\0', 64 * BUFSIZE);
+
 		params.roomId = SyncRoomNumber(params.userId); // BUG:发消息前同步房间号， 也许无法第一时间同步
+
 		int receByte = recv(clientSocket[params.userId - 1], (char*)&recvMes, sizeof(CMessage), 0);
-		if (receByte == -1)
+
+		if (receByte == -1 || receByte == 0)
 		{
-			int reReceByte = recv(clientSocket[params.userId - 1], (char*)&recvMes, sizeof(CMessage), 0);
-			if (reReceByte == -1)
-			{
-				params.status = false;
-				// 从服务器成员列表移除
-				delServerMate(params);
-				// 从房间成员列表移除
-				delRoomMate(params);
+			cout << "exit" << endl;
+			params.status = false;
+			// 从服务器成员列表移除
+			delServerMate(params);
+			// 从房间成员列表移除
+			delRoomMate(params);
 
-				break;
-			}
-			continue;
+			break;
 		}
-		else
-		{
-			if (strcmp(recvMes.messageBuffer, "exit") == 0) // 返回大厅
-			{
-				// 从房间成员列表移除
-				delRoomMate(params);
-				params.roomId = -1;
-				params.status = false;
-			}
-			else if (strcmp(recvMes.messageBuffer, "connect") == 0) // 连接房间
-			{
-				while (params.roomId = LoginStatus(params.userId))
-				{
-					cout << "roomid:" << params.roomId << endl;
-					if (params.roomId != -1)
-					{
-						params.status = true;
-						break;
-					}
-				}
-			}
-			else if (strcmp(recvMes.messageBuffer, "accept") == 0) // 文件转发
-			{
-				if (1)
-				{
-					cout << "send file to user_" << params.userId << endl;
-					
-					CreateThread(NULL, 0, &SendFileThread, 0, 0, NULL);
-					continue;
-				}
-			}
-			else if (recvMes.mType == FILE_MESSAGE) // 文件转发授权
-			{
-				string s = recvMes.messageBuffer;
-				int start = s.find_last_of("\\");
-				strncpy(fileName, s.substr(start + 1, s.length() - start).c_str(), s.length() - start + 1);
-				char temp[128];
-				sprintf(temp, "%s, accept or refuse?", fileName);
-				strcpy(recvMes.messageBuffer, temp);
-				recvMes.mesLength = sizeof(recvMes.messageBuffer);
-
-				char sendBuffer[2000] = "accept1";
-				SendMes(sendBuffer, params.userId);
-			
-				globalClient.number = params.userId;
-				strcpy(globalClient.sendFile, fileName);
-
-				CreateThread(NULL, 0, RecvFileThread, 0, 0, NULL); // 本地存储
-
-				ac = false;
-			}
-
-			(void)time(&now);
-			timer = ctime(&now);
-			cout << "time: " << timer << "receive form client_" << params.userId << " message: " << recvMes.messageBuffer << endl;
-
-			if (params.status)
-				TxtTranspond(&params, &recvMes);
-		}
+		transfer(recvMes, params);
 	}
-
+		
 	// 关闭socket
 	closesocket(clientSocket[params.userId - 1]);
 
 	return 0;
 }
 
-DWORD WINAPI Server::RecvFileThread(LPVOID lpParams)
+void Server::transfer(CMessage recvMes, ClientParams params)
 {
-	struct sockaddr_in* p_remoteAddr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
-
-	PackInfo pack;
-	pack.id = 0;
-
-	BackInfo back;
-	back.id = 1;
-	
-	printf("waiting for message...\n");
-	int ret = 0;
-
-	cout << "start recv\n";
-
-	if ((ret = UDP::serverRecvMessage(&pack, udpSocket, p_remoteAddr)) == -1)
+	if (recvMes.mType == TXT_MESSAGE)
 	{
-		printf("the first package recv error");
-		exit(1);
+		if (strcmp(recvMes.messageBuffer, "exit") == 0) // 返回大厅
+		{
+			cout << params.userId << " leave room " << params.roomId << endl;
+			// 从房间成员列表移除
+			delRoomMate(params);
+			params.roomId = -1;
+			params.status = false;
+			return;
+		}
+		else if (strcmp(recvMes.messageBuffer, "connect") == 0) // 连接房间
+		{
+			while (params.roomId = LoginStatus(params.userId))
+			{
+				cout << params.userId << " connect room " << params.roomId << endl;
+				if (params.roomId != -1)
+				{
+					params.status = true;
+					return;
+				}
+			}
+		}
+		else if (strcmp(recvMes.messageBuffer, "accept") == 0) // 文件转发
+		{
+			cout << "send file to user_" << params.userId << endl;
+			CreateThread(NULL, 0, &SendFileThread, &params, 0, NULL);
+
+			return;
+		}
+
+		fileInfo = FileInfomation(recvMes);
+		if (fileInfo->fileSize > 0) // 接收文件
+		{			
+			string str(fileInfo->fileName);
+
+			int end = str.find_last_of("\\");
+
+			cout << str.substr(end + 1, str.size() - end).c_str() << endl;
+
+			strcpy(globalClient.sendFile, str.substr(end + 1, str.size() - end).c_str());
+
+			fp = fopen(globalClient.sendFile, "wb+");
+
+			cout << "recv file " << fileInfo->fileName << " size " << fileInfo->fileSize << endl;
+
+			starttime = clock();
+
+			return;
+		}
+
+		(void)time(&now);
+		timer = ctime(&now);
+		cout << "time: " << timer << "receive form client_" << params.userId << " message: " << recvMes.messageBuffer << endl;
+
+		if (params.status)
+			TxtTranspond(&params, &recvMes);
 	}
+	else if (recvMes.mType == FILE_MESSAGE) // 接收文件 
+	{	
+		int ret = 0;
 
-	FILE* fp = fopen(globalClient.sendFile, "wb+");
-	fwrite(pack.buf, 1,  50*BUFSIZE - 1, fp);
-	
-	long long size;
+		ret = fwrite(recvMes.messageBuffer, 1, recvMes.mesLength, fp);
 
-	clock_t start, end;
-	start = clock();
-	while (1)
-	{
-		if (UDP::serverSendMessage(&back, udpSocket, p_remoteAddr) == -1)
+		if (ret > 0)
 		{
-			printf("send error! pack_id:%d\n", back.id);
-			continue;
-		}
-
-		if (pack.fin)
-		{
-			size = _atoi64(pack.buf);
-			break;
-		}
-
-		memset(pack.buf, 0, sizeof(pack.buf));
-
-		if (ret = UDP::serverRecvMessage(&pack, udpSocket, p_remoteAddr) == -1)
-		{
-			printf("recv error! pack_id:%d\n", back.id + 1);
+			cout << "recv size " << recvMes.mesLength << endl;
+			totalsize += recvMes.mesLength;
+			cout << ++record << " total size " << totalsize << endl;
 		}
 		else
 		{
-			printf("%d", pack.id);
+			cout << "error" << endl;
 		}
 
-		if (pack.id == (back.id + 1))
+		if (fileInfo->fileSize <= totalsize)
 		{
-			back.id++;
-			fwrite(pack.buf, 1, 50*BUFSIZE - 1, fp);
-			printf("success recv pack id:%d\n", pack.id);
-		}
-		else
-		{
-			printf("failed recv pack id[%d]\n", pack.id + 1);
+			cout << recvMes.mesLength << endl;
+			Sleep(100);
+			fclose(fp);
+			totalsize = 0;
+			record = 0;
+			cout << "recv finish" << endl;
+
+			endtime = clock();
+
+			double delta = (double)(endtime - starttime) / CLOCKS_PER_SEC;
+
+			cout << "time: " << delta << " s speed: " << fileInfo->fileSize / delta / 1024 / 1024 << "mb/s" << endl;
+			
+			char buf[BUFSIZE];
+
+			sprintf(buf, "%s, accept or refuse?\n", fileInfo->fileName);
+
+			memset(recvMes.messageBuffer, '\0', 64 * BUFSIZE);
+			strcpy(recvMes.messageBuffer, buf);
+			recvMes.mesLength = strlen(buf);
+			recvMes.mType = TXT_MESSAGE;
+			if (params.status)
+				TxtTranspond(&params, &recvMes);
 		}
 	}
-	end = clock();
-	cout << "end recv\n";
-	double time = (double)(end - start) / CLOCKS_PER_SEC;
-
-	cout << "File size: " << size << " Total time: " << time << "s Transmission speed: " << size / time << "kb/s\n";
-	fclose(fp);
-
-	return 0;
+	else if (recvMes.mType == FOLDER_MESSAGE) // 接收文件 
+	{
+		cout << "don`t support folder" << endl;
+	}
 }
 
 DWORD WINAPI Server::SendFileThread(LPVOID lpParams)
 {
-	cout << "start send\n";
-	struct sockaddr_in* p_remoteAddr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+	ClientParams *p = (ClientParams*)lpParams;
+
+	ClientParams params;
+
+	params.userId = p->userId;
+
+	cout << "params.userId: " << params.userId << endl;
+
+	string name(globalClient.sendFile);
 	
-	RBackInfo back;
-	RPackInfo pack;
-	int id = 1;
-	
-	FILE* fp = fopen(globalClient.sendFile, "rb+");
+	int end = name.find_last_of("\\");
+
+	name = name.substr(end + 1, name.size() - end - 1);
+
+	cout << "send file:" << name << endl;
+
+	FILE* fp = fopen(name.c_str(), "rb+");
+
 	if (fp == NULL)
 	{
-		printf("file open error");
+		printf("file open error\n");
 		exit(1);
 	}
-	else
-	{
-		fseek(fp, 0, SEEK_SET);
-		printf(" %d\n", id);
-		printf("success recv pack id:%d\n", id);
-	}
+	printf("file open success\n");
 
-	if (UDP::rserverRecvMessage(&back, udpSocket, p_remoteAddr) != -1) // 获取对方地址
-	{
-		printf("recv client_addr\n");
-	}
+	int size = _filelength(_fileno(fp));
+	int rsize = size;
+	cout << "size:" << size << endl;
 
-	while (1)
-	{
-		pack.id = id;
-		pack.fin = false;
+	CMessage message;
+	memset(message.messageBuffer, '\0', 64 * BUFSIZE);
 
+	clock_t starttime, endtime;
+	starttime = clock();
 
-		//重定位流上的文件指针 成功返回0
-		//第一个参数stream为文件指针
-		//第二个参数offset为偏移量，整数表示正向偏移，负数表示负向偏移
-		//第三个参数origin设定从文件的哪里开始偏移, 可能取值为：SEEK_CUR、 SEEK_END 或 SEEK_SET
-		//SEEK_SET： 文件开头
-		//SEEK_CUR： 当前位置
-		//SEEK_END： 文件结尾
-		//其中SEEK_SET, SEEK_CUR和SEEK_END和依次为0，1和2.
-		if (fseek(fp, (pack.id - 1)*( 50*BUFSIZE - 1), SEEK_SET) != 0)
+	int i = 0;
+	while (size > 0) {
+		memset(message.messageBuffer, '\0', 64 * BUFSIZE);
+		message.mType = FILE_MESSAGE;
+
+		int temp = (size < 64 * BUFSIZE ? size : 64 * BUFSIZE);
+
+		message.mesLength = temp;
+
+		fread(message.messageBuffer, 1, temp, fp);
+
+		int ret = 0;
+		if ((ret = send(clientSocket[params.userId-1], (char*)&message, sizeof(CMessage), 0)) == -1)
 		{
-			printf("fseek error");
-			fclose(fp);
-			exit(1);
-		}
-
-		//buffer   是读取的数据存放的内存的指针（可以是数组，也可以是新开辟的空间，buffer就是一个索引）
-		//size     是每次读取的字节数
-		//count    是读取次数
-		//stream   是要读取的文件的指针
-		int fret = fread(pack.buf, 1, 50*BUFSIZE - 1, fp);
-		pack.buf[fret] = '\0'; // 20*BUFSIZE 结尾
-		if (fret == 0)
-		{
-			pack.fin = true;
-			char temp[50];
-			strcpy(pack.buf, _itoa(strlen(pack.buf), temp, 50));
-
-			while (UDP::rserverSendMessage(&pack, udpSocket, p_remoteAddr) == -1)
-			{
-				cout << "send pack id:" << id << " faild\n";
-			}
-
-			printf("send finish\n");
+			cout << "send error" << endl;
 			break;
 		}
+		else
+		{
+			size -= temp;
+			if (temp < 64 * BUFSIZE)
+			{
+				cout << "send finish" << endl;
 
-		if (UDP::rserverSendMessage(&pack, udpSocket, p_remoteAddr) == -1)
-		{
-			printf("send error pack id:%d\n", pack.id);
-			continue;
+				endtime = clock();
+
+				double delta = (double)(endtime - starttime) / CLOCKS_PER_SEC;
+
+				printf("time = %f s  speed = %f mb/s\n", delta, rsize / delta / 1024 / 1024);
+
+				fclose(fp);
+			}
+			else
+			{
+				cout << ++i << " residue size " << size << endl;
+			}
 		}
-		if (UDP::rserverRecvMessage(&back, udpSocket, p_remoteAddr) == -1)
-		{
-			printf("recv error pack id:%d\n", pack.id);
-		}
-		if (pack.id == back.id)
-		{
-			printf("\nsuccess pack id:%d\n", pack.id);
-			id++;
-		}
-		memset(pack.buf, 0, 50*BUFSIZE);
+		//Sleep(10);
 	}
-	fclose(fp);
 
 	return 0;
 }
@@ -490,11 +469,18 @@ int Server::LoginStatus(unsigned number)
 
 void Server::SendMes(char* message, unsigned number)
 {
-	char sendBuffer[128];
+	char sendBuffer[BUFSIZE];
 
-	sprintf(sendBuffer, "%s", message);
+	sprintf(sendBuffer, "server=> %s", message);
 
-	int sendByte = send(clientSocket[number - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+	CMessage mes;
+	memset(mes.messageBuffer, '\0', 64 * BUFSIZE);
+	mes.mType = TXT_MESSAGE;
+	strcpy(mes.messageBuffer, sendBuffer);
+
+	
+
+	int sendByte = send(clientSocket[number - 1], (char*)&mes, sizeof(CMessage), 0);//返回发送数据的总和
 	if (sendByte < 0)
 	{
 		cout << "send faild" << endl;
@@ -511,18 +497,28 @@ void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函
 	{ // 迭代匹配用户
 		if (iter1->roomNumber == clientInfo->roomId)
 		{
+			CMessage mes;
+			memset(mes.messageBuffer, '\0', 64 * BUFSIZE);
+			strcpy(mes.messageBuffer, message->messageBuffer);
+			mes.mesLength = message->mesLength;
+			mes.mType = message->mType;
+
 			for (vector<unsigned>::iterator iter = iter1->mateList.begin(); iter != iter1->mateList.end(); iter++)
 			{
 				char sendBuffer[1024];
-
-				(void)time(&now);
-				timer = ctime(&now);
-
-				sprintf(sendBuffer, "time:%suser_%d: %s\n", timer, clientInfo->userId, message->messageBuffer);
-
+				sprintf(sendBuffer, "client_%d=> %s\n", clientInfo->userId, message->messageBuffer);
+				
+				
+				memset(mes.messageBuffer, '\0', 64 * BUFSIZE);
+				strcpy(mes.messageBuffer, sendBuffer);
+				mes.mesLength = strlen(sendBuffer);
+				mes.mType = message->mType;
+				
 				if (message->pType == PUBLIC_MESSAGE && *iter != clientInfo->userId) // 公开发送
 				{
-					int sendByte = send(clientSocket[*iter - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+					//int sendByte = send(clientSocket[*iter - 1], sendBuffer, strlen(sendBuffer), 0);//返回发送数据的总和		
+
+					int sendByte = send(clientSocket[*iter - 1], (char*)&mes, sizeof(CMessage), 0);//返回发送数据的总和
 					if (sendByte < 0)
 					{
 						cout << "send faild" << endl;
@@ -538,7 +534,14 @@ void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函
 					{
 						char sendBuffer[30];
 						sprintf(sendBuffer, "forbid send to yourself");
-						int sendByte = send(clientSocket[clientInfo->userId - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+
+						memset(mes.messageBuffer, '\0', 64 * BUFSIZE);
+						strcpy(mes.messageBuffer, sendBuffer);
+						mes.mesLength = message->mesLength;
+						mes.mType = message->mType;
+
+
+						int sendByte = send(clientSocket[*iter - 1], (char*)&mes, sizeof(CMessage), 0);//返回发送数据的总和
 						if (sendByte < 0)
 						{
 							cout << "send faild" << endl;
@@ -550,7 +553,7 @@ void Server::TxtTranspond(ClientParams *clientInfo, CMessage* message) // 转发函
 					}
 					else
 					{
-						int sendByte = send(clientSocket[message->sendObjId - 1], sendBuffer, sizeof(sendBuffer), 0);//返回发送数据的总和
+						int sendByte = send(clientSocket[*iter - 1], (char*)&mes, sizeof(CMessage), 0);//返回发送数据的总和
 						if (sendByte < 0)
 						{
 							cout << "send faild" << endl;
@@ -751,13 +754,14 @@ CMessage Server::TypeRecognition(string s)
 
 	message.sendObjId = FuzzyMatch(s.c_str());
 
+	string newStr;
 	if (-1 != message.sendObjId)
 	{
 		int start = s.find("-/");
 
 		message.mesLength = s.length() + 1 - start + 2;
 
-		string newStr = s.substr(start + 2, message.mesLength);
+		newStr = s.substr(start + 2, message.mesLength);
 
 		strncpy(message.messageBuffer, newStr.c_str(), newStr.length() + 1);
 
@@ -768,18 +772,13 @@ CMessage Server::TypeRecognition(string s)
 		message.mesLength = s.length() + 1;
 		strncpy(message.messageBuffer, s.c_str(), s.length() + 1);
 		message.pType = PUBLIC_MESSAGE;
+
+		newStr = s;
 	}
-
-	WIN32_FIND_DATAA FindFileData;
-
-	FindFirstFileA(s.c_str(), &FindFileData);
 
 	if (s.find(":/") >= 0 && s.find(":/") < 10000 || s.find(":\\") >= 0 && s.find(":\\") < 10000)
 	{
-		if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-			message.mType = FOLDER_MESSAGE;
-		else
-			message.mType = FILE_MESSAGE;
+		message.mType = FileRecognition(newStr);
 	}
 	else
 	{
@@ -789,3 +788,35 @@ CMessage Server::TypeRecognition(string s)
 	return message;
 }
 
+MessageType Server::FileRecognition(string s) // 文件识别
+{
+	WIN32_FIND_DATAA FindFileData;
+
+	FindFirstFileA(s.c_str(), &FindFileData);
+
+	if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		return FOLDER_MESSAGE;
+	else
+		return FILE_MESSAGE;
+}
+
+FileInfo* Server::FileInfomation(CMessage message)
+{
+	FileInfo *info = new FileInfo;
+
+	info->fileSize = 0;
+
+	string str(message.messageBuffer);
+
+	cout << str.substr(0, 4).c_str() << endl;
+	if (strcmp(str.substr(0, 4).c_str(), "file") == 0)
+	{
+		int end = str.find_last_of(" ");
+		cout << "filename:" << str.substr(5, end - 4).c_str() << endl;
+		strcpy(info->fileName, str.substr(5, end - 4).c_str());
+		cout << "filesize:" << str.substr(end+1, str.size() - end - 1).c_str()<< endl;
+		info->fileSize = atoi(str.substr(end, str.size() - end).c_str());
+	}
+
+	return info;
+}

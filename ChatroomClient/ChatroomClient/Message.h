@@ -27,7 +27,7 @@ typedef struct CMessage{
 
 	int mesLength; // 消息长度
 
-	char messageBuffer[1024]; // 消息内容
+	char messageBuffer[64 * BUFSIZE]; // 消息内容
 
 }CMessage;
 

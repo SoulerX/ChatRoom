@@ -33,8 +33,9 @@ bool TCP::TcpConnect(SOCKET sock)
 {
 	sockaddr_in addr;
 	addr.sin_family = AF_INET;
-	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.111.1");
-	addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.11");
+	addr.sin_addr.S_un.S_addr = inet_addr("192.168.111.3");
+	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.11");
+	//addr.sin_addr.S_un.S_addr = inet_addr("192.168.1.111");
 	addr.sin_port = htons(25000);
 
 	int b;

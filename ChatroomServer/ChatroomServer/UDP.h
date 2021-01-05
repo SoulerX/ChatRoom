@@ -38,4 +38,7 @@ public:
 	static int serverSendMessage(BackInfo* back, int serSocket, struct sockaddr_in* p_remoteAddr);
 	static int rserverRecvMessage(RBackInfo* back, int serSocket, struct sockaddr_in* p_remoteAddr);
 	static int rserverSendMessage(RPackInfo* pack, int serSocket, struct sockaddr_in* p_remoteAddr);
+
+	static int UDP::recvMessage(char mes[10000], int serSocket, struct sockaddr_in* p_remoteAddr);
+	static int UDP::sendMessage(char mes[10000], int serSocket, struct sockaddr_in* p_remoteAddr);
 };
